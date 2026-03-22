@@ -1467,6 +1467,53 @@ function InformationPage() {
           </p>
         </div>
       </div>
+
+      {/* Final insight */}
+      <div className="bg-accent-light/30 rounded-xl p-6 border-2 border-accent/30 space-y-4">
+        <h3 className="text-xl font-bold text-accent">Главный вывод</h3>
+        <p className="text-text leading-relaxed font-medium">
+          Данные — это точки в многомерном пространстве. Информация — в их взаимном расположении.
+          Всё машинное обучение — это разные способы извлечь из этого расположения что-то полезное.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="bg-card rounded-lg p-3 border border-border">
+            <p className="text-accent font-bold text-xs mb-1">PCA</p>
+            <p className="text-text-dim text-xs">«В каких направлениях точки разбросаны больше всего?»</p>
+          </div>
+          <div className="bg-card rounded-lg p-3 border border-border">
+            <p className="text-green font-bold text-xs mb-1">k-means</p>
+            <p className="text-text-dim text-xs">«Где точки кучкуются?»</p>
+          </div>
+          <div className="bg-card rounded-lg p-3 border border-border">
+            <p className="text-[#6a9bcc] font-bold text-xs mb-1">KNN</p>
+            <p className="text-text-dim text-xs">«Кто рядом с этой точкой?»</p>
+          </div>
+          <div className="bg-card rounded-lg p-3 border border-border">
+            <p className="text-coral font-bold text-xs mb-1">Деревья / XGBoost</p>
+            <p className="text-text-dim text-xs">«Какими порогами разрезать пространство?»</p>
+          </div>
+          <div className="bg-card rounded-lg p-3 border border-border">
+            <p className="text-amber font-bold text-xs mb-1">Нейросети</p>
+            <p className="text-text-dim text-xs">«Какую сложную поверхность провести между группами?»</p>
+          </div>
+          <div className="bg-card rounded-lg p-3 border border-border">
+            <p className="text-text font-bold text-xs mb-1">Линейная регрессия</p>
+            <p className="text-text-dim text-xs">«Какая прямая ближе всего ко всем точкам?»</p>
+          </div>
+        </div>
+
+        <p className="text-text-dim text-sm leading-relaxed">
+          Даже когда данные — текст, картинки, звук — первым делом их <strong>превращают в точки</strong>:
+          эмбеддинг, токенизация, пиксели → вектор чисел → точка в пространстве.
+          И дальше всё то же — расположение, расстояния, структура.
+        </p>
+
+        <p className="text-text-dim text-sm leading-relaxed">
+          Разные методы ML — это <strong>разные вопросы к одним и тем же точкам</strong>.
+          Разные способы извлечь информацию из одного и того же расположения.
+        </p>
+      </div>
     </div>
   );
 }
