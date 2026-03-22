@@ -48,7 +48,7 @@ function solveReel(n, g, mu) {
   const N = n.reduce((a, b) => a + b, 0);
   let lo = lamMin, hi = lamMin + N * 200;
 
-  for (let i = 0; i < 80; i++) {
+  for (let i = 0; i < 30; i++) {
     const mid = (lo + hi) / 2;
     let s = 0;
     let valid = true;
@@ -94,12 +94,12 @@ export function constrainedMLE(freqs, target) {
   let bestProbs = mleProbs;
   let bestDiff = Math.abs(mleER - target);
 
-  for (let iter = 0; iter < 60; iter++) {
+  for (let iter = 0; iter < 30; iter++) {
     const mu = (muLo + muHi) / 2;
 
     // Coordinate descent for this μ
     let p = mleProbs.map(a => [...a]);
-    for (let cd = 0; cd < 15; cd++) {
+    for (let cd = 0; cd < 5; cd++) {
       for (let w = 0; w < 3; w++) {
         const g = marginalRewards(w, p);
         p[w] = solveReel(freqs[w], g, mu);
@@ -114,7 +114,7 @@ export function constrainedMLE(freqs, target) {
       bestProbs = p.map(a => [...a]);
     }
 
-    if (diff < 0.0005) break;
+    if (diff < 0.005) break;
 
     // E[R] decreasing in μ
     if (er > target) muLo = mu;
@@ -160,7 +160,7 @@ export function testStatistic(freqs, target) {
 // Run Monte Carlo simulation (async, yields to UI)
 export async function runSimulation(model, nSim, nGames, target, onProgress) {
   const results = [];
-  const batchSize = 25;
+  const batchSize = 200;
 
   for (let i = 0; i < nSim; i++) {
     const sample = generateSample(model, nGames);

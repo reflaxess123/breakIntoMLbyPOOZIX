@@ -121,7 +121,6 @@ export function Step4({ tReal }) {
                 <Histogram
                   data={r.simData}
                   realValue={tReal}
-                  width={340}
                   height={220}
                   bins={35}
                 />
@@ -138,7 +137,7 @@ export function Step4({ tReal }) {
           {/* Comparison table */}
           <div className="bg-card rounded-xl p-5 border border-border">
             <h3 className="text-lg font-semibold mb-3">Сравнение p-value</h3>
-            <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
               {results.map((r, i) => (
                 <div key={i}>
                   <p className="text-text-dim text-xs">{r.name.split('(')[0]}</p>

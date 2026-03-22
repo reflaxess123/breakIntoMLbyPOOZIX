@@ -36,7 +36,7 @@ function StepWrapper() {
   return (
     <div>
       {/* Step tabs */}
-      <nav className="flex gap-1 overflow-x-auto pb-4 mb-6 border-b border-border">
+      <nav className="flex gap-1 overflow-x-auto pb-4 mb-6 border-b border-border scrollbar-hide flex-nowrap">
         {STEPS.map((s, i) => (
           <button
             key={s.id}

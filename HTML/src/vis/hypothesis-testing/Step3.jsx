@@ -89,16 +89,13 @@ export function Step3({ h0Model, tReal }) {
       {/* Results */}
       {simData && (
         <div className="space-y-4">
-          <div className="flex justify-center">
-            <Histogram
-              data={simData}
-              realValue={tReal}
-              width={720}
-              height={320}
-              bins={50}
-              label={`Распределение T под H₀ (${N_SIM} симуляций)`}
-            />
-          </div>
+          <Histogram
+            data={simData}
+            realValue={tReal}
+            height={320}
+            bins={50}
+            label={`Распределение T под H₀ (${N_SIM} симуляций)`}
+          />
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-card rounded-xl p-4 border border-border text-center">

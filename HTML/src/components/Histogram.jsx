@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 
 const C = {
   bar: 'rgba(218, 119, 86, 0.55)',
@@ -10,12 +10,26 @@ const C = {
   grid: 'rgba(0, 0, 0, 0.06)',
 };
 
-export function Histogram({ data, realValue, width = 700, height = 300, bins = 50, label }) {
+export function Histogram({ data, realValue, height = 300, bins = 50, label }) {
+  const containerRef = useRef(null);
   const canvasRef = useRef(null);
+  const [width, setWidth] = useState(0);
   const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
 
+  const measure = useCallback(() => {
+    if (containerRef.current) {
+      setWidth(containerRef.current.clientWidth);
+    }
+  }, []);
+
   useEffect(() => {
-    if (!data?.length) return;
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [measure]);
+
+  useEffect(() => {
+    if (!data?.length || !width) return;
     const canvas = canvasRef.current;
     canvas.width = width * dpr;
     canvas.height = height * dpr;
@@ -25,11 +39,15 @@ export function Histogram({ data, realValue, width = 700, height = 300, bins = 5
   }, [data, realValue, width, height, bins, label, dpr]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      style={{ width, height }}
-      className="rounded-lg block border border-border"
-    />
+    <div ref={containerRef} className="w-full">
+      {width > 0 && (
+        <canvas
+          ref={canvasRef}
+          style={{ width, height }}
+          className="rounded-lg block border border-border"
+        />
+      )}
+    </div>
   );
 }
 

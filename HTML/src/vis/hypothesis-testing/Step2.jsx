@@ -42,7 +42,7 @@ export function Step2({ onComputed }) {
         <div className="bg-bg/50 rounded-lg p-4">
           <K m={`\\hat{p}_k^w = \\frac{n_k^w}{${N_GAMES}}`} d />
         </div>
-        <div className="grid grid-cols-2 gap-4 mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
           <div>
             <p className="text-text-dim text-sm">log L₁</p>
             <p className="text-xl font-mono text-accent">{results.mleLL.toFixed(4)}</p>
@@ -68,7 +68,7 @@ export function Step2({ onComputed }) {
         <div className="bg-bg/50 rounded-lg p-4">
           <K m={`\\max_{p} \\log L(p) \\quad \\text{при} \\quad \\mathbb{E}_p[R] = ${CASINO_CLAIM}`} d />
         </div>
-        <div className="grid grid-cols-2 gap-4 mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
           <div>
             <p className="text-text-dim text-sm">log L₀</p>
             <p className="text-xl font-mono text-amber">{results.h0LL.toFixed(4)}</p>

@@ -117,18 +117,15 @@ export function Step5({ h0Model }) {
 
       {simData && (
         <div className="space-y-4">
-          <div className="flex justify-center">
-            <Histogram
-              data={simData}
-              realValue={scaledTReal}
-              width={720}
-              height={320}
-              bins={50}
-              label={`N = ${nGames} игр (${N_SIM} симуляций)`}
-            />
-          </div>
+          <Histogram
+            data={simData}
+            realValue={scaledTReal}
+            height={320}
+            bins={50}
+            label={`N = ${nGames} игр (${N_SIM} симуляций)`}
+          />
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-card rounded-xl p-4 border border-border text-center">
               <p className="text-text-dim text-sm">N (игр)</p>
               <p className="text-2xl font-mono text-coral">{nGames}</p>
