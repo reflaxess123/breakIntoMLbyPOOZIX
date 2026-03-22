@@ -1,1 +1,32 @@
 @import "tailwindcss";
+
+@theme {
+  /* Claude light palette */
+  --color-bg: #faf9f5;
+  --color-surface: #ffffff;
+  --color-card: #ffffff;
+  --color-card-hover: #f5f4f0;
+  --color-border: #e8e6dc;
+  --color-text: #1a1a19;
+  --color-text-dim: #6b6b66;
+  --color-accent: #da7756;
+  --color-accent-light: #f0d5c9;
+  --color-coral: #c15f3c;
+  --color-amber: #b8860b;
+  --color-red: #c0392b;
+  --color-green: #588157;
+
+  --font-sans: 'Fira Sans', system-ui, -apple-system, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* KaTeX: inherit text color */
+.katex { color: inherit; }
+.katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.5rem 0; }
