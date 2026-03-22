@@ -25,6 +25,11 @@ export const VISUALIZATIONS = [
       { path: 'applications', label: 'Где используется SVD' },
     ],
   },
+  {
+    id: 'information',
+    title: 'Где хранится информация',
+    component: lazy(() => import('./vis/information/index.jsx')),
+  },
 ];
 
 function App() {
