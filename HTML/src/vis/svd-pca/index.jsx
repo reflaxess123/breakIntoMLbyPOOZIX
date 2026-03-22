@@ -508,6 +508,109 @@ const STEPS = [
   },
 ];
 
+// ── Page: Theory ──
+function TheoryPage() {
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold text-accent">SVD и PCA: основа и формулы</h2>
+
+      <div className="bg-card rounded-xl p-5 border border-border space-y-3">
+        <h3 className="text-lg font-semibold">Что это</h3>
+        <p className="text-text-dim text-sm leading-relaxed">
+          <strong>SVD</strong> (Singular Value Decomposition) раскладывает любую матрицу данных на три части:
+        </p>
+        <div className="bg-bg/50 rounded-lg p-3 text-center">
+          <K m="A = U \Sigma V^T" d />
+        </div>
+        <p className="text-text-dim text-sm leading-relaxed">
+          <strong>PCA</strong> (Principal Component Analysis) — это применение SVD для нахождения
+          главных направлений вариации данных. Столбцы <K m="V" /> — это главные компоненты,
+          а <K m="\sigma_i" /> на диагонали <K m="\Sigma" /> — сингулярные значения,
+          показывающие «важность» каждого направления.
+        </p>
+      </div>
+
+      <div className="bg-card rounded-xl p-5 border border-border space-y-4">
+        <h3 className="text-lg font-semibold">Геометрический смысл: поворот → масштаб → поворот</h3>
+        <p className="text-text-dim text-sm leading-relaxed">
+          SVD говорит: <em>любое</em> линейное преобразование можно разбить на три простых шага:
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="flex flex-col items-center text-center space-y-2">
+            <div className="w-24 h-24 rounded-full bg-coral/10 border-2 border-coral/40 flex items-center justify-center">
+              <K m="V^T" d />
+            </div>
+            <p className="text-coral font-bold text-sm">1. Поворот</p>
+            <p className="text-text-dim text-xs leading-relaxed max-w-48">
+              Повернуть координаты так, чтобы данные выровнялись вдоль осей.
+            </p>
+          </div>
+          <div className="flex flex-col items-center text-center space-y-2">
+            <div className="w-24 h-24 rounded-full bg-green/10 border-2 border-green/40 flex items-center justify-center">
+              <K m="\Sigma" d />
+            </div>
+            <p className="text-green font-bold text-sm">2. Масштаб</p>
+            <p className="text-text-dim text-xs leading-relaxed max-w-48">
+              Растянуть/сжать по каждой оси. <K m="\sigma_1" /> — много, <K m="\sigma_3" /> — мало.
+            </p>
+          </div>
+          <div className="flex flex-col items-center text-center space-y-2">
+            <div className="w-24 h-24 rounded-full bg-[#6a9bcc]/10 border-2 border-[#6a9bcc]/40 flex items-center justify-center">
+              <K m="U" d />
+            </div>
+            <p className="text-[#6a9bcc] font-bold text-sm">3. Поворот</p>
+            <p className="text-text-dim text-xs leading-relaxed max-w-48">
+              Повернуть результат в выходное пространство.
+            </p>
+          </div>
+        </div>
+        <div className="bg-bg/50 rounded-lg p-4 text-center space-y-3">
+          <K m="A = U \cdot \Sigma \cdot V^T" d />
+          <div className="flex justify-center gap-6 flex-wrap text-xs">
+            <span><K m="V^T" /> — <span className="text-coral">поворот 1</span></span>
+            <span><K m="\Sigma" /> — <span className="text-green">масштаб</span></span>
+            <span><K m="U" /> — <span className="text-[#6a9bcc]">поворот 2</span></span>
+          </div>
+          <p className="text-text-dim text-xs">
+            Любая матрица = поворот + масштабирование по осям + ещё один поворот.
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-card rounded-xl p-5 border border-border space-y-4">
+        <h3 className="text-lg font-semibold">Как SVD связан с PCA</h3>
+        <div className="overflow-x-auto">
+          <table className="text-sm w-full">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="p-2 text-left text-text-dim">SVD</th>
+                <th className="p-2 text-left text-text-dim">PCA смысл</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-border/30">
+                <td className="p-2"><K m="V" /> (правые сингулярные векторы)</td>
+                <td className="p-2 text-text-dim">Главные компоненты (направления)</td>
+              </tr>
+              <tr className="border-b border-border/30">
+                <td className="p-2"><K m="\Sigma" /> (сингулярные значения)</td>
+                <td className="p-2 text-text-dim">«Важность» каждого направления</td>
+              </tr>
+              <tr className="border-b border-border/30">
+                <td className="p-2"><K m="U\Sigma" /></td>
+                <td className="p-2 text-text-dim">Координаты точек в новом базисе</td>
+              </tr>
+              <tr>
+                <td className="p-2">Отбросить малые <K m="\sigma_i" /></td>
+                <td className="p-2 text-text-dim">Снижение размерности</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Page: PCA 3D ──
 function PCA3DPage() {
