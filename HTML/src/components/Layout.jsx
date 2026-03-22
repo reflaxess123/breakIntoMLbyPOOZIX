@@ -1,26 +1,90 @@
 import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { VISUALIZATIONS } from '../App';
+import { useRoadmapList } from './RoadmapViewer';
+
+function SidebarContent({ onNavigate }) {
+  const [roadmapsOpen, setRoadmapsOpen] = useState(false);
+  const { files } = useRoadmapList();
+  const location = useLocation();
+  const isRoadmapActive = location.pathname.startsWith('/roadmaps');
+
+  return (
+    <>
+      {/* Roadmaps — collapsible */}
+      <div>
+        <button
+          onClick={() => setRoadmapsOpen(!roadmapsOpen)}
+          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all ${
+            isRoadmapActive
+              ? 'text-accent font-medium'
+              : 'text-text-dim hover:text-text hover:bg-bg'
+          }`}
+        >
+          <span className="flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Roadmaps</span>
+            <span className="text-[10px] text-text-dim/60">({files.length})</span>
+          </span>
+          <svg
+            width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2"
+            className={`transition-transform ${roadmapsOpen ? 'rotate-180' : ''}`}
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+
+        {roadmapsOpen && (
+          <div className="mt-1 space-y-0.5 ml-1">
+            {files.map((f) => (
+              <NavLink
+                key={f.slug}
+                to={`/roadmaps/${f.slug}`}
+                onClick={onNavigate}
+                className={({ isActive }) =>
+                  `block w-full text-left px-3 py-1.5 rounded-lg text-xs transition-all ${
+                    isActive
+                      ? 'bg-accent/10 text-accent font-medium'
+                      : 'text-text-dim hover:text-text hover:bg-bg'
+                  }`
+                }
+              >
+                {f.title}
+              </NavLink>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Visualizations */}
+      <div className="mt-3">
+        <p className="px-3 pt-2 pb-1 text-[10px] font-semibold text-text-dim uppercase tracking-wider">
+          Свалка
+        </p>
+        {VISUALIZATIONS.map((viz) => (
+          <NavLink
+            key={viz.id}
+            to={`/vis/${viz.id}`}
+            onClick={onNavigate}
+            className={({ isActive }) =>
+              `block w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${
+                isActive
+                  ? 'bg-accent/10 text-accent font-medium'
+                  : 'text-text-dim hover:text-text hover:bg-bg'
+              }`
+            }
+          >
+            {viz.title}
+          </NavLink>
+        ))}
+      </div>
+    </>
+  );
+}
 
 export function Layout({ children }) {
   const [menuOpen, setMenuOpen] = useState(false);
-
-  const navLinks = VISUALIZATIONS.map((viz) => (
-    <NavLink
-      key={viz.id}
-      to={`/vis/${viz.id}`}
-      onClick={() => setMenuOpen(false)}
-      className={({ isActive }) =>
-        `block w-full text-left px-3 py-2.5 rounded-lg text-sm transition-all ${
-          isActive
-            ? 'bg-accent/10 text-accent font-medium'
-            : 'text-text-dim hover:text-text hover:bg-bg'
-        }`
-      }
-    >
-      {viz.title}
-    </NavLink>
-  ));
+  const closeMenu = () => setMenuOpen(false);
 
   return (
     <div className="min-h-screen bg-bg flex">
@@ -31,8 +95,8 @@ export function Layout({ children }) {
             Тайная комната Пузикса
           </h1>
         </div>
-        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-          {navLinks}
+        <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
+          <SidebarContent onNavigate={() => {}} />
         </nav>
         <div className="p-4 border-t border-border" />
       </aside>
@@ -59,11 +123,11 @@ export function Layout({ children }) {
       {/* Mobile menu overlay */}
       {menuOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setMenuOpen(false)} />
+          <div className="absolute inset-0 bg-black/30" onClick={closeMenu} />
           <div className="absolute inset-0 bg-surface flex flex-col">
             <div className="pt-20 px-4 pb-4 flex-1 overflow-y-auto">
-              <nav className="space-y-1">
-                {navLinks}
+              <nav className="space-y-0.5">
+                <SidebarContent onNavigate={closeMenu} />
               </nav>
             </div>
           </div>

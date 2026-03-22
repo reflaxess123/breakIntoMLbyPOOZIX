@@ -6,7 +6,9 @@ import { Step2 } from './Step2';
 import { Step3 } from './Step3';
 import { Step4 } from './Step4';
 import { Step5 } from './Step5';
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
+
+const Step6 = lazy(() => import('./Step6').then(m => ({ default: m.Step6 })));
 
 const STEPS = [
   { id: 0, label: 'Данные', path: 'data' },
@@ -15,6 +17,7 @@ const STEPS = [
   { id: 3, label: 'Калибровка', path: 'calibration' },
   { id: 4, label: 'Робастность', path: 'robustness' },
   { id: 5, label: 'Размер выборки', path: 'sample-size' },
+  { id: 6, label: '3D Пространство', path: '3d-space' },
 ];
 
 function StepWrapper() {
@@ -59,6 +62,11 @@ function StepWrapper() {
       {step === 3 && <Step3 h0Model={h0Model} tReal={tReal} />}
       {step === 4 && <Step4 tReal={tReal} />}
       {step === 5 && <Step5 h0Model={h0Model} />}
+      {step === 6 && (
+        <Suspense fallback={<div className="text-text-dim text-center py-16">Загрузка 3D...</div>}>
+          <Step6 tReal={tReal} />
+        </Suspense>
+      )}
 
       {/* Prev / Next */}
       <div className="flex justify-between mt-12 pt-6 border-t border-border">
@@ -71,11 +79,11 @@ function StepWrapper() {
           ← Назад
         </button>
         <span className="text-text-dim text-sm self-center">
-          Шаг {step} из 5
+          Шаг {step} из {STEPS.length - 1}
         </span>
         <button
-          onClick={() => goTo(Math.min(5, step + 1))}
-          disabled={step === 5}
+          onClick={() => goTo(Math.min(STEPS.length - 1, step + 1))}
+          disabled={step === STEPS.length - 1}
           className="px-5 py-2 rounded-lg text-sm font-medium transition-all
             bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-30 disabled:cursor-not-allowed"
         >

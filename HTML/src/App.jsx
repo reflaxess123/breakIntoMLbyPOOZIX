@@ -1,11 +1,9 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
+import { RoadmapViewer } from './components/RoadmapViewer';
 
 // ── Visualization registry ──────────────────────────────────────
-// To add a new visualization:
-//   1. Create src/vis/<slug>/index.jsx  (export default component)
-//   2. Add an entry below
 export const VISUALIZATIONS = [
   {
     id: 'hypothesis-testing',
@@ -25,10 +23,8 @@ function App() {
         }
       >
         <Routes>
-          {/* Root → redirect to first viz */}
           <Route index element={<Navigate to={`/vis/${VISUALIZATIONS[0].id}`} replace />} />
 
-          {/* Each visualization gets /vis/<slug> and /vis/<slug>/:step */}
           {VISUALIZATIONS.map((viz) => (
             <Route
               key={viz.id}
@@ -37,7 +33,10 @@ function App() {
             />
           ))}
 
-          {/* Fallback */}
+          {/* Roadmaps */}
+          <Route path="/roadmaps" element={<RoadmapViewer />} />
+          <Route path="/roadmaps/:slug" element={<RoadmapViewer />} />
+
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
