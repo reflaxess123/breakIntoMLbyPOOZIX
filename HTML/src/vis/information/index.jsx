@@ -485,7 +485,7 @@ function OneDimCanvas() {
     return () => window.removeEventListener('resize', measure);
   }, []);
 
-  const H = 300;
+  const H = 680;
 
   useEffect(() => {
     if (!w) return;
@@ -516,7 +516,7 @@ function drawOneDim(ctx, W, H) {
     return Math.sqrt(-2 * Math.log(u1 || 0.001)) * Math.cos(2 * Math.PI * u2);
   };
 
-  const rowH = 80;
+  const rowH = 200; // strip + histogram + padding
   const pad = { l: 50, r: 30 };
   const stripW = W - pad.l - pad.r;
 
@@ -525,7 +525,7 @@ function drawOneDim(ctx, W, H) {
       title: 'Зарплата: 30K–500K',
       sub: 'Дисперсия большая → различаем бедных и богатых',
       color: '#588157',
-      generate: () => { seed = 33; const pts = []; for (let i = 0; i < 40; i++) pts.push(30 + rand() * 470); return pts; },
+      generate: () => { seed = 33; const pts = []; for (let i = 0; i < 40; i++) { const v = 250 + randn() * 100; pts.push(Math.max(30, Math.min(500, v))); } return pts; },
       unit: 'K ₽',
       min: 0, max: 550,
     },
@@ -533,7 +533,7 @@ function drawOneDim(ctx, W, H) {
       title: 'Температура: 36.4–36.8',
       sub: 'Дисперсия крошечная → все одинаковые',
       color: '#c0392b',
-      generate: () => { seed = 55; const pts = []; for (let i = 0; i < 40; i++) pts.push(36.4 + rand() * 0.4); return pts; },
+      generate: () => { seed = 55; const pts = []; for (let i = 0; i < 40; i++) pts.push(36.6 + randn() * 0.1); return pts; },
       unit: '°C',
       min: 35, max: 38,
     },
@@ -658,6 +658,51 @@ function drawOneDim(ctx, W, H) {
       variance > 100 ? '✓ информативно' : variance > 0.01 ? '△ мало информации' : '✗ нет информации',
       vx, cy + 8
     );
+
+    // ── Histogram + density curve below ──
+    const histY0 = lineY + 38;
+    const histH = 50;
+    const nBins = 20;
+    const bins = new Array(nBins).fill(0);
+    for (const v of pts) {
+      const idx = Math.min(nBins - 1, Math.floor((v - r.min) / range * nBins));
+      bins[idx]++;
+    }
+    const maxBin = Math.max(...bins, 1);
+
+    // Histogram bars
+    const binW = stripW / nBins;
+    for (let b = 0; b < nBins; b++) {
+      const bh = (bins[b] / maxBin) * histH;
+      ctx.fillStyle = r.color + '30';
+      ctx.fillRect(pad.l + b * binW, histY0 + histH - bh, binW - 1, bh);
+    }
+
+    // Density curve (gaussian)
+    if (std > 0.01) {
+      ctx.strokeStyle = r.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let px = 0; px <= stripW; px += 2) {
+        const val = r.min + (px / stripW) * range;
+        const z = (val - mean) / std;
+        const density = Math.exp(-0.5 * z * z);
+        const y = histY0 + histH - density * histH * 0.95;
+        px === 0 ? ctx.moveTo(pad.l + px, y) : ctx.lineTo(pad.l + px, y);
+      }
+      ctx.stroke();
+    }
+
+    // Axis line
+    ctx.strokeStyle = '#e8e6dc';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad.l, histY0 + histH);
+    ctx.lineTo(pad.l + stripW, histY0 + histH);
+    ctx.stroke();
+
+    // Label
+    label('частотность →', pad.l + 25, histY0 + 3, '#aaa', 7);
   }
 }
 
