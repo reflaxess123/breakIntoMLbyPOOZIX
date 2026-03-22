@@ -61,22 +61,47 @@ function SidebarContent({ onNavigate }) {
         <p className="px-3 pt-2 pb-1 text-[10px] font-semibold text-text-dim uppercase tracking-wider">
           Свалка
         </p>
-        {VISUALIZATIONS.map((viz) => (
-          <NavLink
-            key={viz.id}
-            to={`/vis/${viz.id}`}
-            onClick={onNavigate}
-            className={({ isActive }) =>
-              `block w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${
-                isActive
-                  ? 'bg-accent/10 text-accent font-medium'
-                  : 'text-text-dim hover:text-text hover:bg-bg'
-              }`
-            }
-          >
-            {viz.title}
-          </NavLink>
-        ))}
+        {VISUALIZATIONS.map((viz) => {
+          const isVizActive = location.pathname.startsWith(`/vis/${viz.id}`);
+          return (
+            <div key={viz.id}>
+              <NavLink
+                to={`/vis/${viz.id}`}
+                onClick={onNavigate}
+                className={({ isActive }) =>
+                  `block w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${
+                    isActive || isVizActive
+                      ? 'bg-accent/10 text-accent font-medium'
+                      : 'text-text-dim hover:text-text hover:bg-bg'
+                  }`
+                }
+              >
+                {viz.title}
+              </NavLink>
+              {/* Sub-pages when active */}
+              {viz.pages && isVizActive && (
+                <div className="ml-3 mt-0.5 space-y-0.5 border-l-2 border-accent/20 pl-2">
+                  {viz.pages.map((page) => (
+                    <NavLink
+                      key={page.path}
+                      to={`/vis/${viz.id}/${page.path}`}
+                      onClick={onNavigate}
+                      className={({ isActive }) =>
+                        `block w-full text-left px-2 py-1.5 rounded-lg text-xs transition-all ${
+                          isActive
+                            ? 'text-accent font-medium'
+                            : 'text-text-dim hover:text-text hover:bg-bg'
+                        }`
+                      }
+                    >
+                      {page.label}
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </>
   );

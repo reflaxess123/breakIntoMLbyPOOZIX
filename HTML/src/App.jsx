@@ -10,6 +10,21 @@ export const VISUALIZATIONS = [
     title: 'Проверка гипотез: Игровой автомат',
     component: lazy(() => import('./vis/hypothesis-testing/index.jsx')),
   },
+  {
+    id: 'svd-pca',
+    title: 'SVD и PCA',
+    component: lazy(() => import('./vis/svd-pca/index.jsx')),
+    // Sub-pages shown in sidebar when this viz is active
+    pages: [
+      { path: 'theory', label: 'Основа и формулы' },
+      { path: 'pca-3d', label: 'PCA: главные компоненты' },
+      { path: 'transform', label: 'V^T → Σ → U анимация' },
+      { path: 'square', label: 'V^T → Σ → U анимация 2 (куб)' },
+      { path: 'lora', label: 'LoRA: низкоранговая адаптация' },
+      { path: 'dimensionality', label: 'Снижение размерности: интуиция' },
+      { path: 'applications', label: 'Где используется SVD' },
+    ],
+  },
 ];
 
 function App() {
