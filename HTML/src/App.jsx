@@ -30,6 +30,18 @@ export const VISUALIZATIONS = [
     title: 'Где хранится информация',
     component: lazy(() => import('./vis/information/index.jsx')),
   },
+  {
+    id: 'glivenko-cantelli',
+    title: 'Эмпирические распределения',
+    component: lazy(() => import('./vis/glivenko-cantelli/index.jsx')),
+    pages: [
+      { path: 'empirical', label: 'Эмпирическая CDF' },
+      { path: 'supremum', label: 'Что такое супремум' },
+      { path: 'theorem', label: 'Теорема Гливенко–Кантелли' },
+      { path: 'kolmogorov', label: 'Теорема Колмогорова' },
+      { path: 'dkw', label: 'Неравенство DKW' },
+    ],
+  },
 ];
 
 function App() {
