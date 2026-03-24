@@ -3,6 +3,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { K } from '../../components/Latex';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 
 // ══════════════════════════════════════════════════════════════
 // Math helpers: Beta distribution
@@ -1726,7 +1728,7 @@ function HistoryPage() {
         <article className="bg-card rounded-2xl p-6 border border-border prose prose-sm max-w-none
           prose-headings:text-accent prose-strong:text-text prose-a:text-accent
           prose-li:text-text prose-p:text-text prose-p:leading-relaxed">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{content}</ReactMarkdown>
         </article>
       )}
     </div>
@@ -2385,7 +2387,7 @@ function IntegratedArticle() {
           {/* Article section */}
           <section className="bg-card rounded-2xl p-6 border border-border">
             <article className="prose prose-sm max-w-none prose-headings:text-accent prose-strong:text-text prose-p:text-text prose-p:leading-relaxed prose-li:text-text prose-table:text-sm">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{sec}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{sec}</ReactMarkdown>
             </article>
           </section>
 
@@ -2715,7 +2717,71 @@ function AllThreeSection() {
   );
 }
 
-// ── Section 9 component: Markdown article ──
+// ══════════════════════════════════════════════════════════════
+// Sub-page: Frequentist vs Bayesian — article from Gemini
+// ══════════════════════════════════════════════════════════════
+function FreqVsBayesPage() {
+  const [content, setContent] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const base = import.meta.env.BASE_URL || '/';
+    fetch(`${base}frequentist-vs-bayesian.md`)
+      .then(r => r.ok ? r.text() : Promise.reject('not found'))
+      .then(text => { setContent(text); setLoading(false); })
+      .catch(() => { setContent('Не удалось загрузить статью.'); setLoading(false); });
+  }, []);
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 md:px-0 pb-12">
+      <div className="mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold text-accent mb-2">
+          Частотный vs Байесовский подход
+        </h1>
+        <p className="text-text-dim text-sm">
+          Два взгляда на реальность: параметры фиксированы или случайны?
+          Текст сгенерирован Gemini 3.1 Pro.
+        </p>
+      </div>
+
+      {/* Key insight card */}
+      <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="bg-card rounded-2xl p-5 border-2 border-coral/30">
+          <h3 className="font-bold text-coral mb-2">Частотный подход</h3>
+          <p className="text-sm text-text leading-relaxed">
+            Параметры <strong>фиксированы</strong> (конкретные числа).
+            Данные <strong>случайны</strong> (каждый эксперимент даёт разные).
+          </p>
+          <p className="text-xs text-text-dim mt-2">
+            «У монеты ЕСТЬ вероятность 0.5. Я бросаю и получаю случайные результаты.»
+          </p>
+        </div>
+        <div className="bg-card rounded-2xl p-5 border-2 border-accent/30">
+          <h3 className="font-bold text-accent mb-2">Байесовский подход</h3>
+          <p className="text-sm text-text leading-relaxed">
+            Данные <strong>фиксированы</strong> (уже собрали, не случайны).
+            Параметры <strong>случайны</strong> (описываются распределением).
+          </p>
+          <p className="text-xs text-text-dim mt-2">
+            «Я не знаю вероятность орла, описываю своё незнание горкой. Данные сужают горку.»
+          </p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="text-text-dim text-center py-12">Загрузка статьи...</div>
+      ) : (
+        <article className="bg-card rounded-2xl p-6 border border-border prose prose-sm max-w-none
+          prose-headings:text-accent prose-strong:text-text prose-a:text-accent
+          prose-li:text-text prose-p:text-text prose-p:leading-relaxed
+          prose-table:text-sm prose-th:text-accent">
+          <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{content}</ReactMarkdown>
+        </article>
+      )}
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════
 // Router
 // ══════════════════════════════════════════════════════════════
@@ -2729,6 +2795,7 @@ export default function BayesianEstimation() {
       <Route path="posterior" element={<PosteriorPage />} />
       <Route path="credible-interval" element={<CredibleIntervalPage />} />
       <Route path="mle-vs-map" element={<MLEvsMapPage />} />
+      <Route path="freq-vs-bayes" element={<FreqVsBayesPage />} />
       <Route path="history" element={<HistoryPage />} />
     </Routes>
   );

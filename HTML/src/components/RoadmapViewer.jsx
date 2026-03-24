@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 
 // Fetch manifest (list of .md files) from /roadmaps/manifest.json
 export function useRoadmapList() {
@@ -74,12 +76,12 @@ export function RoadmapViewer() {
   }
 
   return (
-    <div>
+    <div className="px-2 md:px-0">
       {/* Markdown content */}
       {loading ? (
         <div className="text-text-dim text-center py-16">Загрузка...</div>
       ) : (
-        <article className="prose prose-sm max-w-none
+        <article className="bg-card rounded-2xl p-3 md:p-6 border border-border prose prose-sm max-w-none
           prose-headings:text-text prose-headings:font-semibold
           prose-h1:text-2xl prose-h1:text-accent prose-h1:border-b prose-h1:border-border prose-h1:pb-3
           prose-h2:text-xl prose-h2:mt-8
@@ -97,7 +99,7 @@ export function RoadmapViewer() {
           prose-hr:border-border
           prose-em:text-text-dim
         ">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{content}</ReactMarkdown>
         </article>
       )}
     </div>

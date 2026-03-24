@@ -1,7 +1,47 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { VISUALIZATIONS } from '../App';
 import { useRoadmapList } from './RoadmapViewer';
+
+function ScrollToTop() {
+  const [visible, setVisible] = useState(false);
+  const lastY = useRef(0);
+
+  useEffect(() => {
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const y = window.scrollY;
+        // Show button if scrolled down >400px AND scrolling up
+        if (y > 400 && y < lastY.current - 30) {
+          setVisible(true);
+        } else if (y <= 100 || y > lastY.current + 10) {
+          setVisible(false);
+        }
+        lastY.current = y;
+        ticking = false;
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <button
+      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      className="fixed bottom-6 right-4 z-40 md:hidden w-11 h-11 rounded-full bg-accent text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform"
+      aria-label="Наверх"
+    >
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M18 15l-6-6-6 6" />
+      </svg>
+    </button>
+  );
+}
 
 function SidebarContent({ onNavigate }) {
   const [roadmapsOpen, setRoadmapsOpen] = useState(false);
@@ -112,7 +152,8 @@ export function Layout({ children }) {
   const closeMenu = () => setMenuOpen(false);
 
   return (
-    <div className="min-h-screen bg-bg flex">
+    <div className="min-h-screen bg-bg md:flex">
+      <ScrollToTop />
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-64 shrink-0 bg-surface border-r border-border flex-col sticky top-0 h-screen">
         <div className="p-5 border-b border-border">
@@ -123,45 +164,51 @@ export function Layout({ children }) {
         <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
           <SidebarContent onNavigate={() => {}} />
         </nav>
-        <div className="p-4 border-t border-border" />
       </aside>
 
-      {/* Mobile header */}
-      <div className="fixed top-0 left-0 right-0 z-50 md:hidden bg-surface border-b border-border">
-        <div className="flex items-center justify-between px-4 py-3">
+      {/* Mobile: column layout (header on top, content below) */}
+      <div className="flex flex-col md:hidden w-full">
+        {/* Mobile header — not sticky, scrolls with content */}
+        <div className="bg-surface border-b border-border flex items-center justify-between px-3 py-2">
           <h1 className="text-sm font-bold text-text">Тайная комната Пузикса</h1>
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            className="p-2 -mr-2 text-text-dim hover:text-text"
+            className="p-1.5 text-text-dim hover:text-text"
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              {menuOpen ? (
-                <path d="M18 6L6 18M6 6l12 12" />
-              ) : (
-                <path d="M3 12h18M3 6h18M3 18h18" />
-              )}
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 12h18M3 6h18M3 18h18" />
             </svg>
           </button>
         </div>
+
+        {/* Mobile content — minimal padding */}
+        <main className="flex-1">
+          <div className="max-w-6xl mx-auto px-0 py-2">
+            {children}
+          </div>
+        </main>
       </div>
 
       {/* Mobile menu overlay */}
       {menuOpen && (
-        <div className="fixed inset-0 z-40 md:hidden">
-          <div className="absolute inset-0 bg-black/30" onClick={closeMenu} />
-          <div className="absolute inset-0 bg-surface flex flex-col">
-            <div className="pt-20 px-4 pb-4 flex-1 overflow-y-auto">
-              <nav className="space-y-0.5">
-                <SidebarContent onNavigate={closeMenu} />
-              </nav>
-            </div>
+        <div className="fixed inset-0 z-50 md:hidden bg-surface flex flex-col">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+            <h1 className="text-sm font-bold text-text">Тайная комната Пузикса</h1>
+            <button onClick={closeMenu} className="p-1.5 text-text-dim hover:text-text">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
           </div>
+          <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
+            <SidebarContent onNavigate={closeMenu} />
+          </nav>
         </div>
       )}
 
-      {/* Main content */}
-      <main className="flex-1 min-w-0 overflow-y-auto">
-        <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 pt-20 md:pt-8">
+      {/* Desktop content */}
+      <main className="hidden md:block flex-1 min-w-0 overflow-x-hidden">
+        <div className="max-w-6xl mx-auto px-8 py-8">
           {children}
         </div>
       </main>
