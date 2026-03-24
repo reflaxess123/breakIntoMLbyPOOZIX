@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { K } from '../../components/Latex';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 // ══════════════════════════════════════════════════════════════
 // Math helpers: Beta distribution
@@ -1692,6 +1694,1029 @@ function CredibleIntervalPage() {
 }
 
 // ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+// Sub-page 5: History — loaded from MD file via Gemini
+// ══════════════════════════════════════════════════════════════
+function HistoryPage() {
+  const [content, setContent] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const base = import.meta.env.BASE_URL || '/';
+    fetch(`${base}bayesian-history.md`)
+      .then(r => r.ok ? r.text() : Promise.reject('not found'))
+      .then(text => { setContent(text); setLoading(false); })
+      .catch(() => { setContent('Не удалось загрузить статью.'); setLoading(false); });
+  }, []);
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 md:px-0 pb-12">
+      <div className="mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold text-accent mb-2">
+          История и контекст байесовской статистики
+        </h1>
+        <p className="text-text-dim text-sm">
+          Откуда взялся Байес, зачем это нужно, и чем отличается от частотного подхода.
+          Текст сгенерирован Gemini 3.1 Pro.
+        </p>
+      </div>
+      {loading ? (
+        <div className="text-text-dim text-center py-12">Загрузка...</div>
+      ) : (
+        <article className="bg-card rounded-2xl p-6 border border-border prose prose-sm max-w-none
+          prose-headings:text-accent prose-strong:text-text prose-a:text-accent
+          prose-li:text-text prose-p:text-text prose-p:leading-relaxed">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+        </article>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// MLE vs MAP page
+// ══════════════════════════════════════════════════════════════
+
+function likelihood(theta, k, n) {
+  if (theta <= 0 || theta >= 1) return 0;
+  return Math.pow(theta, k) * Math.pow(1 - theta, n - k);
+}
+
+function MLEvsMapPage() {
+  // ── Section 2: Interactive coin comparison ──
+  const [heads, setHeads] = useState(0);
+  const [tails, setTails] = useState(0);
+  const [priorStrength, setPriorStrength] = useState(3);
+  const trueTheta = 0.6;
+
+  const total = heads + tails;
+  const mle = total > 0 ? heads / total : 0.5;
+  const postAlpha = priorStrength + heads;
+  const postBeta = priorStrength + tails;
+  const mapVal = postAlpha > 1 && postBeta > 1
+    ? (postAlpha - 1) / (postAlpha + postBeta - 2)
+    : postAlpha / (postAlpha + postBeta);
+  const postMean = postAlpha / (postAlpha + postBeta);
+
+  const flipCoin = () => {
+    if (Math.random() < trueTheta) setHeads(h => h + 1);
+    else setTails(t => t + 1);
+  };
+  const resetCoins = () => { setHeads(0); setTails(0); };
+
+  // Canvas refs for section 2
+  const mleContainerRef = useRef(null);
+  const mleCanvasRef = useRef(null);
+  const mleW = useCanvasSize(mleContainerRef);
+
+  const mapContainerRef = useRef(null);
+  const mapCanvasRef = useRef(null);
+  const mapW = useCanvasSize(mapContainerRef);
+
+  const H2 = 260;
+
+  // Draw MLE canvas
+  useEffect(() => {
+    if (mleW === 0) return;
+    const ctx = setupCanvas(mleCanvasRef, mleW, H2);
+    if (!ctx) return;
+    const pad = { t: 20, r: 15, b: 32, l: 40 };
+    ctx.clearRect(0, 0, mleW, H2);
+    drawAxes(ctx, mleW, H2, pad, 'θ', 'L(θ)');
+
+    if (total > 0) {
+      const maxY = drawCurve(ctx, mleW, H2, pad, x => likelihood(x, heads, total), COLORS.likelihood, 2.5);
+      // MLE vertical line
+      if (maxY > 0) {
+        const px = pad.l + mle * (mleW - pad.l - pad.r);
+        ctx.save();
+        ctx.strokeStyle = COLORS.map;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(px, pad.t);
+        ctx.lineTo(px, H2 - pad.b);
+        ctx.stroke();
+        ctx.restore();
+        ctx.fillStyle = COLORS.map;
+        ctx.font = 'bold 12px Fira Sans, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`MLE = ${mle.toFixed(3)}`, px, pad.t - 4);
+      }
+    } else {
+      ctx.fillStyle = COLORS.textDim;
+      ctx.font = '13px Fira Sans, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Подбросьте монетку', mleW / 2, H2 / 2);
+    }
+  }, [mleW, heads, tails, total, mle]);
+
+  // Draw MAP canvas
+  useEffect(() => {
+    if (mapW === 0) return;
+    const ctx = setupCanvas(mapCanvasRef, mapW, H2);
+    if (!ctx) return;
+    const pad = { t: 20, r: 15, b: 32, l: 40 };
+    ctx.clearRect(0, 0, mapW, H2);
+    drawAxes(ctx, mapW, H2, pad, 'θ', 'p(θ|d)');
+
+    // find global max for scaling all three curves together
+    const steps = 300;
+    let gMax = 0;
+    for (let i = 0; i <= steps; i++) {
+      const x = i / steps;
+      const pv = betaPDF(x, priorStrength, priorStrength);
+      const lv = total > 0 ? likelihood(x, heads, total) : 0;
+      const postV = betaPDF(x, postAlpha, postBeta);
+      if (isFinite(pv) && pv > gMax) gMax = pv;
+      if (isFinite(lv) && lv > gMax) gMax = lv;
+      if (isFinite(postV) && postV > gMax) gMax = postV;
+    }
+    if (gMax === 0) gMax = 1;
+
+    // Prior (gray dashed)
+    drawCurveScaled(ctx, mapW, H2, pad, x => betaPDF(x, priorStrength, priorStrength), '#999', gMax, 1.5, [5, 4]);
+    // Likelihood (light blue)
+    if (total > 0) {
+      drawCurveScaled(ctx, mapW, H2, pad, x => likelihood(x, heads, total), COLORS.likelihood, gMax, 1.5);
+    }
+    // Posterior (bold terracotta)
+    drawCurveScaled(ctx, mapW, H2, pad, x => betaPDF(x, postAlpha, postBeta), COLORS.posterior, gMax, 3);
+
+    // MAP vertical line
+    const pw = mapW - pad.l - pad.r;
+    const ph = H2 - pad.t - pad.b;
+    const mapPx = pad.l + mapVal * pw;
+    ctx.save();
+    ctx.strokeStyle = COLORS.map;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(mapPx, pad.t);
+    ctx.lineTo(mapPx, H2 - pad.b);
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = COLORS.map;
+    ctx.font = 'bold 11px Fira Sans, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`MAP = ${mapVal.toFixed(3)}`, mapPx, pad.t - 4);
+
+    // Posterior mean vertical line
+    const meanPx = pad.l + postMean * pw;
+    ctx.save();
+    ctx.strokeStyle = COLORS.mean;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(meanPx, pad.t + 10);
+    ctx.lineTo(meanPx, H2 - pad.b);
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = COLORS.mean;
+    ctx.font = '11px Fira Sans, sans-serif';
+    ctx.textAlign = 'center';
+    const meanLabelY = pad.t + 22;
+    ctx.fillText(`Mean = ${postMean.toFixed(3)}`, meanPx, meanLabelY > pad.t ? meanLabelY : pad.t + 22);
+  }, [mapW, heads, tails, total, priorStrength, postAlpha, postBeta, mapVal, postMean]);
+
+  // ── Section 3: Convergence chart ──
+  const [flipSeq, setFlipSeq] = useState(() => Array.from({ length: 100 }, () => Math.random() < 0.6 ? 1 : 0));
+  const convContainerRef = useRef(null);
+  const convCanvasRef = useRef(null);
+  const convW = useCanvasSize(convContainerRef);
+  const H3 = 300;
+
+  const regenerateFlips = useCallback(() => {
+    setFlipSeq(Array.from({ length: 100 }, () => Math.random() < trueTheta ? 1 : 0));
+  }, []);
+
+  useEffect(() => {
+    if (convW === 0) return;
+    const ctx = setupCanvas(convCanvasRef, convW, H3);
+    if (!ctx) return;
+    const pad = { t: 25, r: 15, b: 35, l: 50 };
+    ctx.clearRect(0, 0, convW, H3);
+
+    const pw = convW - pad.l - pad.r;
+    const ph = H3 - pad.t - pad.b;
+
+    // Axes
+    ctx.strokeStyle = COLORS.grid;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad.l, H3 - pad.b);
+    ctx.lineTo(convW - pad.r, H3 - pad.b);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(pad.l, pad.t);
+    ctx.lineTo(pad.l, H3 - pad.b);
+    ctx.stroke();
+
+    // X ticks
+    ctx.fillStyle = COLORS.textDim;
+    ctx.font = '11px Fira Sans, sans-serif';
+    ctx.textAlign = 'center';
+    for (const v of [1, 20, 40, 60, 80, 100]) {
+      const x = pad.l + ((v - 1) / 99) * pw;
+      ctx.fillText(v.toString(), x, H3 - pad.b + 16);
+    }
+    ctx.fillText('Количество бросков', (pad.l + convW - pad.r) / 2, H3 - 2);
+
+    // Y ticks
+    ctx.textAlign = 'right';
+    for (const v of [0, 0.2, 0.4, 0.6, 0.8, 1.0]) {
+      const y = H3 - pad.b - v * ph;
+      ctx.fillText(v.toFixed(1), pad.l - 6, y + 4);
+      if (v > 0 && v < 1) {
+        ctx.strokeStyle = '#f0efe8';
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(convW - pad.r, y); ctx.stroke();
+        ctx.strokeStyle = COLORS.grid;
+      }
+    }
+
+    // True theta dashed line
+    const trueY = H3 - pad.b - trueTheta * ph;
+    ctx.save();
+    ctx.strokeStyle = COLORS.textDim;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([8, 4]);
+    ctx.beginPath();
+    ctx.moveTo(pad.l, trueY);
+    ctx.lineTo(convW - pad.r, trueY);
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = COLORS.textDim;
+    ctx.font = '11px Fira Sans, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(`Истинное θ = ${trueTheta}`, convW - pad.r - 110, trueY - 6);
+
+    // Compute cumulative estimates
+    const alpha0 = priorStrength, beta0 = priorStrength;
+    const mleArr = [], mapArr = [], meanArr = [];
+    let cumH = 0;
+    for (let i = 0; i < 100; i++) {
+      cumH += flipSeq[i];
+      const n = i + 1;
+      const cumT = n - cumH;
+      mleArr.push(cumH / n);
+      const pa = alpha0 + cumH, pb = beta0 + cumT;
+      mapArr.push(pa > 1 && pb > 1 ? (pa - 1) / (pa + pb - 2) : pa / (pa + pb));
+      meanArr.push(pa / (pa + pb));
+    }
+
+    // Draw lines
+    const drawLine = (arr, color, lw, dash = []) => {
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = lw;
+      ctx.setLineDash(dash);
+      ctx.beginPath();
+      for (let i = 0; i < 100; i++) {
+        const x = pad.l + (i / 99) * pw;
+        const y = H3 - pad.b - arr[i] * ph;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    };
+
+    drawLine(mleArr, COLORS.map, 2);
+    drawLine(mapArr, COLORS.posterior, 2.5);
+    drawLine(meanArr, COLORS.mean, 2, [4, 3]);
+
+    // Legend
+    const lx = pad.l + 10, ly = pad.t + 8;
+    const items = [
+      { label: 'MLE', color: COLORS.map, dash: [] },
+      { label: 'MAP', color: COLORS.posterior, dash: [] },
+      { label: 'Post. mean', color: COLORS.mean, dash: [4, 3] },
+    ];
+    ctx.font = '12px Fira Sans, sans-serif';
+    items.forEach((it, idx) => {
+      const yy = ly + idx * 18;
+      ctx.save();
+      ctx.strokeStyle = it.color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash(it.dash);
+      ctx.beginPath(); ctx.moveTo(lx, yy); ctx.lineTo(lx + 24, yy); ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = COLORS.text;
+      ctx.textAlign = 'left';
+      ctx.fillText(it.label, lx + 30, yy + 4);
+    });
+  }, [convW, flipSeq, priorStrength]);
+
+  // ── Section 4: Convergence slider ──
+  const [convN, setConvN] = useState(10);
+  const [convSeq] = useState(() => Array.from({ length: 500 }, () => Math.random() < 0.6 ? 1 : 0));
+  const convLineContainerRef = useRef(null);
+  const convLineCanvasRef = useRef(null);
+  const convLineW = useCanvasSize(convLineContainerRef);
+  const H4 = 100;
+
+  useEffect(() => {
+    if (convLineW === 0) return;
+    const ctx = setupCanvas(convLineCanvasRef, convLineW, H4);
+    if (!ctx) return;
+    const pad = { t: 30, r: 20, b: 25, l: 20 };
+    ctx.clearRect(0, 0, convLineW, H4);
+
+    const pw = convLineW - pad.l - pad.r;
+    const midY = H4 / 2 + 5;
+
+    // Number line from 0 to 1
+    ctx.strokeStyle = COLORS.grid;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(pad.l, midY);
+    ctx.lineTo(convLineW - pad.r, midY);
+    ctx.stroke();
+
+    ctx.fillStyle = COLORS.textDim;
+    ctx.font = '11px Fira Sans, sans-serif';
+    ctx.textAlign = 'center';
+    for (const v of [0, 0.2, 0.4, 0.6, 0.8, 1.0]) {
+      const x = pad.l + v * pw;
+      ctx.beginPath(); ctx.moveTo(x, midY - 4); ctx.lineTo(x, midY + 4); ctx.stroke();
+      ctx.fillText(v.toFixed(1), x, midY + 18);
+    }
+
+    // Compute estimates for convN flips
+    let cumH = 0;
+    for (let i = 0; i < convN; i++) cumH += convSeq[i];
+    const cumT = convN - cumH;
+    const mleEst = cumH / convN;
+    const pa = priorStrength + cumH, pb = priorStrength + cumT;
+    const mapEst = pa > 1 && pb > 1 ? (pa - 1) / (pa + pb - 2) : pa / (pa + pb);
+    const meanEst = pa / (pa + pb);
+
+    // True theta marker
+    const trueX = pad.l + trueTheta * pw;
+    ctx.fillStyle = COLORS.textDim;
+    ctx.font = 'bold 12px Fira Sans, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`θ* = ${trueTheta}`, trueX, pad.t - 8);
+    ctx.beginPath();
+    ctx.moveTo(trueX, pad.t); ctx.lineTo(trueX - 5, pad.t - 4); ctx.lineTo(trueX + 5, pad.t - 4);
+    ctx.closePath();
+    ctx.fill();
+
+    // Marker function
+    const drawMarker = (val, color, label, yOff) => {
+      const x = pad.l + Math.max(0, Math.min(1, val)) * pw;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x, midY, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = color;
+      ctx.font = 'bold 11px Fira Sans, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${label} = ${val.toFixed(3)}`, x, midY + yOff);
+    };
+
+    drawMarker(mleEst, COLORS.map, 'MLE', -14);
+    drawMarker(mapEst, COLORS.posterior, 'MAP', 34);
+    drawMarker(meanEst, COLORS.mean, 'Mean', 46);
+
+    // Gap line
+    const gap = Math.abs(mleEst - mapEst);
+    if (gap > 0.005) {
+      const x1 = pad.l + Math.min(mleEst, mapEst) * pw;
+      const x2 = pad.l + Math.max(mleEst, mapEst) * pw;
+      ctx.save();
+      ctx.strokeStyle = COLORS.textDim;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(x1, midY - 10);
+      ctx.lineTo(x2, midY - 10);
+      ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = COLORS.textDim;
+      ctx.font = '10px Fira Sans, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`Δ = ${gap.toFixed(3)}`, (x1 + x2) / 2, midY - 14);
+    }
+  }, [convLineW, convN, convSeq, priorStrength]);
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 md:px-0 pb-12 space-y-8">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-accent mb-2">
+          MLE vs MAP: две философии оценки параметров
+        </h1>
+        <p className="text-text-dim text-sm">
+          Частотный и байесовский подходы к одной и той же задаче.
+        </p>
+      </div>
+
+      {/* Section 1: Two philosophies */}
+      <section className="bg-card rounded-2xl p-6 border border-border space-y-4">
+        <h2 className="text-xl font-bold text-text">Две философии оценки параметров</h2>
+        <p className="text-text leading-relaxed">
+          Предположим, мы подбросили монетку 3 раза и получили 3 орла. Какова вероятность орла{' '}
+          <K m="\theta" />? Два подхода дают разные ответы:
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="border border-border rounded-xl p-4 bg-bg">
+            <h3 className="font-bold text-[#c0392b] mb-1">Частотный подход (MLE)</h3>
+            <p className="text-sm text-text leading-relaxed mb-2">
+              «При каких параметрах вероятность увидеть наши данные максимальна?»
+            </p>
+            <p className="text-sm text-text">
+              Ответ: <K m={`\\hat{\\theta}_{MLE} = \\frac{k}{n} = \\frac{3}{3} = 1.0`} />
+            </p>
+            <p className="text-xs text-text-dim mt-1">
+              Монетка всегда падает орлом? Серьёзно?
+            </p>
+          </div>
+          <div className="border border-border rounded-xl p-4 bg-bg">
+            <h3 className="font-bold text-accent mb-1">Байесовский подход (MAP)</h3>
+            <p className="text-sm text-text leading-relaxed mb-2">
+              «Каковы наиболее вероятные параметры с учётом данных И априорного знания?»
+            </p>
+            <p className="text-sm text-text">
+              Ответ: <K m={`\\hat{\\theta}_{MAP} \\approx 0.65`} /> (при умеренном prior)
+            </p>
+            <p className="text-xs text-text-dim mt-1">
+              Скорее всего монетка чуть смещена, но не безумно.
+            </p>
+          </div>
+        </div>
+        <p className="text-sm text-text-dim">
+          Формально: MLE = <K m={`\\arg\\max_{\\theta} L(\\theta | d)`} />, а MAP = <K m={`\\arg\\max_{\\theta} p(\\theta) \\cdot L(\\theta | d)`} />, где <K m="p(\theta)" /> — априорное распределение.
+        </p>
+      </section>
+
+      {/* Section 2: Interactive coin comparison */}
+      <section className="bg-card rounded-2xl p-6 border border-border space-y-4">
+        <h2 className="text-xl font-bold text-text">Интерактивное сравнение: монетка</h2>
+
+        {/* Controls */}
+        <div className="flex flex-wrap items-center gap-3">
+          <button onClick={flipCoin}
+            className="px-4 py-2 rounded-lg bg-accent text-white font-medium hover:opacity-90 w-full sm:w-auto">
+            Подбросить монетку
+          </button>
+          <button onClick={resetCoins}
+            className="px-4 py-2 rounded-lg border border-border text-text font-medium hover:bg-bg w-full sm:w-auto">
+            Сбросить
+          </button>
+          <span className="text-sm text-text">
+            Орёл: <strong>{heads}</strong>, Решка: <strong>{tails}</strong>, Всего: <strong>{total}</strong>
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="text-sm text-text">
+            Сила prior <K m={`\\alpha_0 = \\beta_0`} /> = <strong>{priorStrength}</strong>
+          </label>
+          <input type="range" min={1} max={20} step={1} value={priorStrength}
+            onChange={e => setPriorStrength(Number(e.target.value))}
+            className="flex-1 min-w-[120px] max-w-xs" />
+        </div>
+
+        {/* Two canvases side by side */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <h3 className="text-sm font-bold text-[#c0392b] mb-2 text-center">Частотный (MLE)</h3>
+            <div ref={mleContainerRef} className="w-full">
+              {mleW > 0 && <canvas ref={mleCanvasRef} style={{ width: mleW, height: H2 }}
+                className="rounded-lg block border border-border" />}
+            </div>
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-accent mb-2 text-center">Байесовский (MAP)</h3>
+            <div ref={mapContainerRef} className="w-full">
+              {mapW > 0 && <canvas ref={mapCanvasRef} style={{ width: mapW, height: H2 }}
+                className="rounded-lg block border border-border" />}
+            </div>
+          </div>
+        </div>
+
+        {/* Computed values */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-sm">
+          <div className="bg-bg rounded-lg p-2 border border-border">
+            <div className="text-text-dim">MLE</div>
+            <div className="font-bold text-[#c0392b]">{total > 0 ? mle.toFixed(3) : '—'}</div>
+          </div>
+          <div className="bg-bg rounded-lg p-2 border border-border">
+            <div className="text-text-dim">MAP</div>
+            <div className="font-bold text-accent">{mapVal.toFixed(3)}</div>
+          </div>
+          <div className="bg-bg rounded-lg p-2 border border-border">
+            <div className="text-text-dim">Post. Mean</div>
+            <div className="font-bold text-[#b8860b]">{postMean.toFixed(3)}</div>
+          </div>
+          <div className="bg-bg rounded-lg p-2 border border-border">
+            <div className="text-text-dim">Истинное θ</div>
+            <div className="font-bold text-text">{trueTheta}</div>
+          </div>
+        </div>
+
+        {/* Legend for MAP canvas */}
+        <div className="flex flex-wrap gap-4 text-xs text-text-dim">
+          <span><span className="inline-block w-4 h-0.5 bg-[#999] mr-1 align-middle" style={{ borderTop: '2px dashed #999' }} /> Prior</span>
+          <span><span className="inline-block w-4 h-0.5 bg-[#6b9bd2] mr-1 align-middle" /> Likelihood</span>
+          <span><span className="inline-block w-4 h-0.5 mr-1 align-middle" style={{ borderTop: '3px solid #da7756' }} /> Posterior</span>
+        </div>
+      </section>
+
+      {/* Section 3: Small data behaviour */}
+      <section className="bg-card rounded-2xl p-6 border border-border space-y-4">
+        <h2 className="text-xl font-bold text-text">Что происходит при малом количестве данных</h2>
+        <p className="text-sm text-text leading-relaxed">
+          При малом числе бросков MLE «прыгает» — он полностью зависит от данных. Байесовские оценки (MAP и среднее) более стабильны благодаря prior.
+        </p>
+        <button onClick={regenerateFlips}
+          className="px-4 py-2 rounded-lg bg-accent text-white font-medium hover:opacity-90 w-full sm:w-auto">
+          Новый эксперимент
+        </button>
+        <div ref={convContainerRef} className="w-full">
+          {convW > 0 && <canvas ref={convCanvasRef} style={{ width: convW, height: H3 }}
+            className="rounded-lg block border border-border" />}
+        </div>
+      </section>
+
+      {/* Section 4: When MLE and MAP converge */}
+      <section className="bg-card rounded-2xl p-6 border border-border space-y-4">
+        <h2 className="text-xl font-bold text-text">Когда MLE и MAP совпадают</h2>
+        <p className="text-sm text-text leading-relaxed">
+          С ростом данных (<K m="n \to \infty" />) влияние prior исчезает, и MLE ≈ MAP. Также при плоском prior (<K m={`\\alpha = \\beta = 1`} />) MAP = MLE всегда.
+        </p>
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="text-sm text-text">
+            Количество бросков: <strong>{convN}</strong>
+          </label>
+          <input type="range" min={1} max={500} step={1} value={convN}
+            onChange={e => setConvN(Number(e.target.value))}
+            className="flex-1 min-w-[120px] max-w-sm" />
+        </div>
+        <div ref={convLineContainerRef} className="w-full">
+          {convLineW > 0 && <canvas ref={convLineCanvasRef} style={{ width: convLineW, height: H4 }}
+            className="rounded-lg block border border-border" />}
+        </div>
+        <p className="text-xs text-text-dim">
+          Двигайте слайдер — при большом n точки MLE и MAP сливаются.
+        </p>
+      </section>
+
+      {/* Section 5: Comparison table */}
+      <section className="bg-card rounded-2xl p-6 border border-border space-y-4">
+        <h2 className="text-xl font-bold text-text">Таблица сравнения</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left border-collapse">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="p-2 text-text-dim font-medium" />
+                <th className="p-2 text-[#c0392b] font-bold">Частотный (MLE)</th>
+                <th className="p-2 text-accent font-bold">Байесовский (MAP)</th>
+                <th className="p-2 text-[#b8860b] font-bold">Байесовское среднее</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-border">
+                <td className="p-2 text-text-dim font-medium">Формула</td>
+                <td className="p-2"><K m={`\\arg\\max L(\\theta)`} /></td>
+                <td className="p-2"><K m={`\\arg\\max p(\\theta) \\cdot L(\\theta)`} /></td>
+                <td className="p-2"><K m={`\\int \\theta \\cdot p(\\theta|d)\\,d\\theta`} /></td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="p-2 text-text-dim font-medium">Prior нужен?</td>
+                <td className="p-2 text-text">Нет</td>
+                <td className="p-2 text-text">Да</td>
+                <td className="p-2 text-text">Да</td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="p-2 text-text-dim font-medium">Мало данных</td>
+                <td className="p-2 text-text">Ненадёжен</td>
+                <td className="p-2 text-text">Стабилен</td>
+                <td className="p-2 text-text">Стабилен</td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="p-2 text-text-dim font-medium">Много данных</td>
+                <td className="p-2 text-text">Совпадают</td>
+                <td className="p-2 text-text">Совпадают</td>
+                <td className="p-2 text-text">Совпадают</td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="p-2 text-text-dim font-medium">3/3 орла</td>
+                <td className="p-2"><K m={`\\theta = 1.0`} /></td>
+                <td className="p-2"><K m={`\\theta \\approx 0.65`} /></td>
+                <td className="p-2"><K m={`\\theta \\approx 0.57`} /></td>
+              </tr>
+              <tr>
+                <td className="p-2 text-text-dim font-medium">Аналогия</td>
+                <td className="p-2 text-text">«Верю только данным»</td>
+                <td className="p-2 text-text">«Данные + здравый смысл»</td>
+                <td className="p-2 text-text">«Средневзвешенное мнение»</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Section 6: Regularization = hidden prior */}
+      <section className="bg-card rounded-2xl p-6 border border-border space-y-4">
+        <h2 className="text-xl font-bold text-text">Регуляризация = скрытый prior</h2>
+        <p className="text-text leading-relaxed">
+          В машинном обучении байесовский подход прячется внутри хорошо знакомых техник:
+        </p>
+        <ul className="list-disc list-inside space-y-2 text-text text-sm">
+          <li>
+            <strong>L2-регуляризация (Ridge)</strong> — эквивалентна гауссовскому prior на веса:
+            <K m={`\\; p(w) = \\mathcal{N}(0, \\sigma^2)`} />.
+            Штраф <K m={`\\lambda \\|w\\|^2`} /> = отрицательный лог-prior.
+          </li>
+          <li>
+            <strong>L1-регуляризация (Lasso)</strong> — эквивалентна prior Лапласа:
+            <K m={`\\; p(w) = \\text{Laplace}(0, b)`} />.
+            Поощряет разреженные веса (обнуляет ненужные).
+          </li>
+          <li>
+            <strong>Dropout</strong> — приближённый байесовский вывод.
+            Каждая маска dropout ≈ семплирование из posterior по архитектурам.
+          </li>
+        </ul>
+        <div className="bg-bg rounded-xl p-4 border border-border">
+          <p className="text-sm text-text font-medium">
+            Каждый раз когда ты добавляешь регуляризацию — ты неявно используешь Байеса.
+          </p>
+          <p className="text-xs text-text-dim mt-1">
+            Формально: минимизация <K m={`-\\log L(\\theta) + \\lambda R(\\theta)`} /> = максимизация <K m={`\\log p(d|\\theta) + \\log p(\\theta)`} /> = MAP.
+          </p>
+        </div>
+      </section>
+
+      {/* Integrated article with visualizations inline */}
+      <IntegratedArticle />
+    </div>
+  );
+}
+
+// ── Integrated article: markdown sections interleaved with vizualizations ──
+function IntegratedArticle() {
+  const [sections, setSections] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const base = import.meta.env.BASE_URL || '/';
+    fetch(`${base}mle-map-mean.md`)
+      .then(r => r.ok ? r.text() : '')
+      .then(text => {
+        // Split by ## headers (keep headers with their content)
+        const parts = text.split(/(?=^## )/m).filter(s => s.trim());
+        setSections(parts);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="text-text-dim text-center py-8">Загрузка статьи...</div>;
+  if (!sections.length) return null;
+
+  // Map section indices to visualizations
+  // sections[0] = Введение, [1] = MLE, [2] = MAP, [3] = Posterior Mean, [4] = Связи, [5] = Таблица
+  return (
+    <>
+      {sections.map((sec, i) => (
+        <div key={i}>
+          {/* Article section */}
+          <section className="bg-card rounded-2xl p-6 border border-border">
+            <article className="prose prose-sm max-w-none prose-headings:text-accent prose-strong:text-text prose-p:text-text prose-p:leading-relaxed prose-li:text-text prose-table:text-sm">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{sec}</ReactMarkdown>
+            </article>
+          </section>
+
+          {/* Insert visualization AFTER the relevant section */}
+          {i === 1 && (
+            <section className="bg-card rounded-2xl p-6 border border-border border-accent/30">
+              <h3 className="text-lg font-bold text-accent mb-3">Визуализация: Likelihood и MLE</h3>
+              <p className="text-text-dim text-sm mb-4">
+                Двигайте слайдер — при малом n MLE скачет дико. Синяя кривая — likelihood, красная линия — MLE (пик).
+              </p>
+              <AllThreeSection />
+            </section>
+          )}
+
+          {i === 2 && (
+            <section className="bg-card rounded-2xl p-6 border border-border border-accent/30">
+              <h3 className="text-lg font-bold text-accent mb-3">Визуализация: MAP vs Posterior Mean</h3>
+              <p className="text-text-dim text-sm mb-4">
+                Попробуйте скошенные пресеты — увидите как MAP (пик) и Mean (центр тяжести) расходятся.
+              </p>
+              <MapVsMeanSection />
+            </section>
+          )}
+
+          {i === 4 && (
+            <section className="bg-card rounded-2xl p-6 border border-border border-accent/30">
+              <h3 className="text-lg font-bold text-accent mb-3">Визуализация: Все три оценки сходятся</h3>
+              <p className="text-text-dim text-sm mb-4">
+                При n=1 оценки сильно расходятся. При n=100 — почти совпадают. Именно об этом секция выше.
+              </p>
+              <AllThreeSection />
+            </section>
+          )}
+        </div>
+      ))}
+    </>
+  );
+}
+
+// ── Section 7 component: MAP vs Posterior Mean ──
+function MapVsMeanSection() {
+  const [alpha, setAlpha] = useState(3);
+  const [beta_, setBeta] = useState(10);
+
+  const containerRef = useRef(null);
+  const canvasRef = useRef(null);
+  const w = useCanvasSize(containerRef);
+  const H = 300;
+
+  const mode = alpha > 1 && beta_ > 1 ? (alpha - 1) / (alpha + beta_ - 2) : null;
+  const mean = alpha / (alpha + beta_);
+
+  useEffect(() => {
+    if (w === 0) return;
+    const ctx = setupCanvas(canvasRef, w, H);
+    if (!ctx) return;
+    const pad = { t: 30, r: 15, b: 32, l: 40 };
+    ctx.clearRect(0, 0, w, H);
+    drawAxes(ctx, w, H, pad, 'θ', 'p(θ)');
+
+    const fn = x => betaPDF(x, alpha, beta_);
+    // find max for scaling
+    const pw = w - pad.l - pad.r;
+    const ph = H - pad.t - pad.b;
+    const steps = Math.min(pw, 400);
+    let maxY = 0;
+    const vals = [];
+    for (let i = 0; i <= steps; i++) {
+      const x = i / steps;
+      const y = fn(x);
+      vals.push(y);
+      if (isFinite(y) && y > maxY) maxY = y;
+    }
+
+    if (maxY > 0 && mode !== null) {
+      // Shade area between MAP and Mean
+      const xLeft = Math.min(mode, mean);
+      const xRight = Math.max(mode, mean);
+      ctx.save();
+      ctx.fillStyle = 'rgba(184,134,11,0.15)';
+      ctx.beginPath();
+      const iStart = Math.floor(xLeft * steps);
+      const iEnd = Math.ceil(xRight * steps);
+      const baseY = H - pad.b;
+      ctx.moveTo(pad.l + (iStart / steps) * pw, baseY);
+      for (let i = iStart; i <= iEnd; i++) {
+        const px = pad.l + (i / steps) * pw;
+        const py = H - pad.b - (vals[i] / maxY) * ph * 0.92;
+        ctx.lineTo(px, py);
+      }
+      ctx.lineTo(pad.l + (iEnd / steps) * pw, baseY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Draw curve
+    drawCurve(ctx, w, H, pad, fn, COLORS.posterior, 3);
+
+    // Vertical lines
+    if (mode !== null) {
+      drawVerticalLine(ctx, w, H, pad, mode, COLORS.map, `MAP = ${mode.toFixed(3)}`, 'left');
+    }
+    drawVerticalLine(ctx, w, H, pad, mean, COLORS.mean, `Mean = ${mean.toFixed(3)}`, 'right');
+  }, [w, alpha, beta_]);
+
+  const presets = [
+    { label: 'Симметричное Beta(10,10)', a: 10, b: 10 },
+    { label: 'Скошенное Beta(3,10)', a: 3, b: 10 },
+    { label: 'Сильно скошенное Beta(2,20)', a: 2, b: 20 },
+  ];
+
+  return (
+    <section className="bg-card rounded-2xl p-6 border border-border space-y-4">
+      <h2 className="text-xl font-bold text-text">MAP vs Posterior Mean — в чём разница?</h2>
+
+      <div className="flex flex-wrap gap-2">
+        {presets.map(p => (
+          <button key={p.label} onClick={() => { setAlpha(p.a); setBeta(p.b); }}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium bg-bg border border-border hover:border-accent hover:text-accent transition-colors">
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <label className="flex items-center gap-3 text-sm text-text">
+          <span className="w-16 shrink-0">α = {alpha}</span>
+          <input type="range" min={1} max={30} value={alpha}
+            onChange={e => setAlpha(+e.target.value)}
+            className="flex-1 accent-accent" />
+        </label>
+        <label className="flex items-center gap-3 text-sm text-text">
+          <span className="w-16 shrink-0">β = {beta_}</span>
+          <input type="range" min={1} max={30} value={beta_}
+            onChange={e => setBeta(+e.target.value)}
+            className="flex-1 accent-accent" />
+        </label>
+      </div>
+
+      <div ref={containerRef} className="w-full">
+        <canvas ref={canvasRef} style={{ width: '100%', height: H }} />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+        <div className="bg-bg rounded-xl p-3 border border-border">
+          <span className="font-bold" style={{ color: COLORS.map }}>MAP (mode)</span>
+          <span className="ml-2 text-text">{mode !== null ? mode.toFixed(4) : '—'}</span>
+        </div>
+        <div className="bg-bg rounded-xl p-3 border border-border">
+          <span className="font-bold" style={{ color: COLORS.mean }}>Mean</span>
+          <span className="ml-2 text-text">{mean.toFixed(4)}</span>
+        </div>
+      </div>
+
+      <div className="bg-bg rounded-xl p-4 border border-border text-sm text-text leading-relaxed space-y-2">
+        <p><strong style={{ color: COLORS.map }}>MAP</strong> — вершина горки (самое вероятное значение).</p>
+        <p><strong style={{ color: COLORS.mean }}>Mean</strong> — центр тяжести горки (средневзвешенное).</p>
+        <p>Для симметричных распределений они совпадают.
+          Для скошенных — отличаются: длинный хвост тянет Mean в свою сторону,
+          а MAP остаётся на пике.</p>
+      </div>
+    </section>
+  );
+}
+
+// ── Section 8 component: All three estimates ──
+function AllThreeSection() {
+  const [n, setN] = useState(5);
+  const priorA = 3, priorB = 3;
+  const trueTheta = 0.6;
+
+  // Deterministic "random" flips using seed
+  const k = useMemo(() => {
+    let heads = 0;
+    let seed = 42;
+    for (let i = 0; i < n; i++) {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      if ((seed / 0x7fffffff) < trueTheta) heads++;
+    }
+    return heads;
+  }, [n]);
+
+  const mle = n > 0 ? k / n : 0.5;
+  const mapVal = (k + priorA - 1) / (n + priorA + priorB - 2);
+  const meanVal = (k + priorA) / (n + priorA + priorB);
+
+  const containerRef = useRef(null);
+  const canvasRef = useRef(null);
+  const w = useCanvasSize(containerRef);
+  const H = 320;
+
+  useEffect(() => {
+    if (w === 0) return;
+    const ctx = setupCanvas(canvasRef, w, H);
+    if (!ctx) return;
+    const pad = { t: 30, r: 15, b: 32, l: 40 };
+    ctx.clearRect(0, 0, w, H);
+    drawAxes(ctx, w, H, pad, 'θ', 'плотность');
+
+    const pw = w - pad.l - pad.r;
+    const ph = H - pad.t - pad.b;
+    const steps = Math.min(pw, 400);
+
+    // Compute all curves and find global max
+    const priorFn = x => betaPDF(x, priorA, priorB);
+    const postA = priorA + k, postB = priorB + n - k;
+    const posteriorFn = x => betaPDF(x, postA, postB);
+
+    // Likelihood (unnormalized) — normalize for display
+    const likVals = [];
+    let likMax = 0;
+    for (let i = 0; i <= steps; i++) {
+      const x = i / steps;
+      const v = likelihood(x, k, n);
+      likVals.push(v);
+      if (v > likMax) likMax = v;
+    }
+
+    // Find global max across prior and posterior
+    let globalMax = 0;
+    for (let i = 0; i <= steps; i++) {
+      const x = i / steps;
+      const pv = priorFn(x);
+      const postV = posteriorFn(x);
+      if (pv > globalMax) globalMax = pv;
+      if (postV > globalMax) globalMax = postV;
+    }
+    // Scale likelihood to same visual range
+    const likScale = likMax > 0 ? globalMax / likMax : 0;
+    const scaledLik = x => {
+      const idx = Math.round(x * steps);
+      return (likVals[Math.min(idx, steps)] || 0) * likScale;
+    };
+
+    // Draw: prior (gray dashed), likelihood (blue), posterior (terracotta bold)
+    drawCurveScaled(ctx, w, H, pad, priorFn, '#999', globalMax, 2, [6, 4]);
+    if (n > 0) {
+      drawCurveScaled(ctx, w, H, pad, scaledLik, COLORS.likelihood, globalMax, 2, []);
+    }
+    drawCurveScaled(ctx, w, H, pad, posteriorFn, COLORS.posterior, globalMax, 3, []);
+
+    // Vertical lines: MLE, MAP, Mean
+    if (n > 0) {
+      drawVerticalLine(ctx, w, H, pad, mle, COLORS.map, `MLE = ${mle.toFixed(3)}`, 'left');
+    }
+    drawVerticalLine(ctx, w, H, pad, mapVal, COLORS.posterior, `MAP = ${mapVal.toFixed(3)}`, 'left');
+    drawVerticalLine(ctx, w, H, pad, meanVal, COLORS.mean, `Mean = ${meanVal.toFixed(3)}`, 'right');
+
+    // True theta line
+    const truePx = pad.l + trueTheta * pw;
+    ctx.save();
+    ctx.strokeStyle = COLORS.prior;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(truePx, pad.t);
+    ctx.lineTo(truePx, H - pad.b);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = COLORS.prior;
+    ctx.font = '11px Fira Sans, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`θ* = ${trueTheta}`, truePx, H - pad.b + 28);
+    ctx.restore();
+
+    // Legend
+    const lx = pad.l + 8, ly = pad.t + 6;
+    ctx.font = '11px Fira Sans, sans-serif';
+    ctx.setLineDash([6, 4]); ctx.strokeStyle = '#999'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx + 22, ly); ctx.stroke();
+    ctx.setLineDash([]); ctx.fillStyle = '#999'; ctx.fillText(`Prior Beta(${priorA},${priorB})`, lx + 26, ly + 4);
+
+    if (n > 0) {
+      ctx.strokeStyle = COLORS.likelihood; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(lx, ly + 16); ctx.lineTo(lx + 22, ly + 16); ctx.stroke();
+      ctx.fillStyle = COLORS.likelihood; ctx.fillText('Likelihood', lx + 26, ly + 20);
+    }
+
+    ctx.strokeStyle = COLORS.posterior; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(lx, ly + 32); ctx.lineTo(lx + 22, ly + 32); ctx.stroke();
+    ctx.fillStyle = COLORS.posterior; ctx.fillText(`Posterior Beta(${postA},${postB})`, lx + 26, ly + 36);
+  }, [w, n, k]);
+
+  return (
+    <section className="bg-card rounded-2xl p-6 border border-border space-y-4">
+      <h2 className="text-xl font-bold text-text">Визуальное сравнение MLE, MAP, Mean</h2>
+
+      <p className="text-sm text-text-dim">
+        Истинная монета: <K m={`\\theta^* = ${trueTheta}`} />. Prior: <K m={`\\text{Beta}(${priorA}, ${priorB})`} /> (мягкий, центрирован на 0.5).
+      </p>
+
+      <label className="flex items-center gap-3 text-sm text-text">
+        <span className="w-32 shrink-0">Бросков: <strong>{n}</strong> (орлов: {k})</span>
+        <input type="range" min={1} max={100} value={n}
+          onChange={e => setN(+e.target.value)}
+          className="flex-1 accent-accent" />
+      </label>
+
+      <div ref={containerRef} className="w-full">
+        <canvas ref={canvasRef} style={{ width: '100%', height: H }} />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+        <div className="bg-bg rounded-xl p-3 border-l-4" style={{ borderColor: COLORS.map }}>
+          <div className="font-bold" style={{ color: COLORS.map }}>MLE</div>
+          <div className="text-text text-lg font-mono">{mle.toFixed(4)}</div>
+          <div className="text-text-dim text-xs"><K m={`k/n = ${k}/${n}`} /></div>
+        </div>
+        <div className="bg-bg rounded-xl p-3 border-l-4" style={{ borderColor: COLORS.posterior }}>
+          <div className="font-bold" style={{ color: COLORS.posterior }}>MAP</div>
+          <div className="text-text text-lg font-mono">{mapVal.toFixed(4)}</div>
+          <div className="text-text-dim text-xs"><K m={`(k+\\alpha-1)/(n+\\alpha+\\beta-2)`} /></div>
+        </div>
+        <div className="bg-bg rounded-xl p-3 border-l-4" style={{ borderColor: COLORS.mean }}>
+          <div className="font-bold" style={{ color: COLORS.mean }}>Mean</div>
+          <div className="text-text text-lg font-mono">{meanVal.toFixed(4)}</div>
+          <div className="text-text-dim text-xs"><K m={`(k+\\alpha)/(n+\\alpha+\\beta)`} /></div>
+        </div>
+      </div>
+
+      <div className="bg-bg rounded-xl p-4 border border-border text-sm text-text leading-relaxed">
+        При <K m="n=1" />: MLE может быть 0 или 1 (безумие). MAP ≈ 0.5 (prior доминирует). Mean ≈ 0.5.
+        При <K m="n=100" />: все три ≈ 0.6 (данные доминируют).
+      </div>
+    </section>
+  );
+}
+
+// ── Section 9 component: Markdown article ──
+// ══════════════════════════════════════════════════════════════
 // Router
 // ══════════════════════════════════════════════════════════════
 
@@ -1703,6 +2728,8 @@ export default function BayesianEstimation() {
       <Route path="beta" element={<BetaPage />} />
       <Route path="posterior" element={<PosteriorPage />} />
       <Route path="credible-interval" element={<CredibleIntervalPage />} />
+      <Route path="mle-vs-map" element={<MLEvsMapPage />} />
+      <Route path="history" element={<HistoryPage />} />
     </Routes>
   );
 }

@@ -51,6 +51,8 @@ export const VISUALIZATIONS = [
       { path: 'beta', label: 'Бета-распределение' },
       { path: 'posterior', label: 'Posterior в деле' },
       { path: 'credible-interval', label: 'Достоверный интервал' },
+      { path: 'mle-vs-map', label: 'MLE vs MAP' },
+      { path: 'history', label: 'История и контекст' },
     ],
   },
 ];

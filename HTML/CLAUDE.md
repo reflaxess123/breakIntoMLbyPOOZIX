@@ -6,18 +6,20 @@
 
 - **Vite + React** (JSX, no TypeScript)
 - **React Router v7** — клиентский роутинг
-- **Tailwind CSS v4** (config via `@theme` in `src/index.css`)
+- **Tailwind CSS v4** (config via `@theme` in `src/index.css`) + `@tailwindcss/typography`
 - **KaTeX** для LaTeX-формул
 - **Canvas API** для графиков/гистограмм
+- **Three.js** + `@react-three/fiber` + `@react-three/drei` для 3D визуализаций
+- **react-markdown** + `remark-gfm` для рендеринга MD-файлов
 - **Fira Sans** — основной шрифт (`@fontsource/fira-sans`)
 
 ## Deploy
 
-- **GitHub Pages** — автодеплой через `.github/workflows/deploy.yml`
-- Push в `main` → build → deploy
-- URL: `https://reflaxess123.github.io/breakIntoMLbyPOOZIX/`
-- `base` в `vite.config.js` = `/breakIntoMLbyPOOZIX/`
-- SPA fallback: `public/404.html` + redirect-скрипт в `index.html`
+- **Локальный PowerShell** — `.\deploy.ps1` из корня репозитория
+- Билдит `npx vite build --base=/poozix/` → tar+ssh → nginx reload
+- Сервер: `176.57.218.240` (nareshka.ru)
+- URL: `https://nareshka.ru/poozix/`
+- Nginx: `location ^~ /poozix/` в `/etc/nginx/sites-available/nareshka`
 
 ## Роутинг
 
@@ -141,6 +143,15 @@ Layout уже адаптивный: на мобилке (<768px) сайдбар 
 - Canvas для графиков (не SVG, не библиотеки)
 - Никаких внешних CDN — всё через npm
 - **Мобильная адаптивность обязательна** для каждой визуализации
+
+## Генерация контента через Gemini API
+
+- **Модель:** всегда `gemini-3.1-pro-preview` (НИКОГДА не 2.5 pro)
+- **Кодировка:** записывать файл через `text.encode('utf-8')` в binary mode (`'wb'`)
+- **Результат:** MD-файлы кладутся в `public/`, загружаются через `fetch()` + `react-markdown`
+- Текущие сгенерированные файлы:
+  - `public/bayesian-history.md` — история байесовской статистики
+  - `public/mle-map-mean.md` — MLE vs MAP vs Posterior Mean
 
 ## Команды
 
