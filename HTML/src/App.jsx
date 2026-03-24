@@ -42,6 +42,17 @@ export const VISUALIZATIONS = [
       { path: 'dkw', label: 'Неравенство DKW' },
     ],
   },
+  {
+    id: 'bayesian',
+    title: 'Байесовская оценка',
+    component: lazy(() => import('./vis/bayesian/index.jsx')),
+    pages: [
+      { path: 'intuition', label: 'Интуиция' },
+      { path: 'beta', label: 'Бета-распределение' },
+      { path: 'posterior', label: 'Posterior в деле' },
+      { path: 'credible-interval', label: 'Достоверный интервал' },
+    ],
+  },
 ];
 
 function App() {
