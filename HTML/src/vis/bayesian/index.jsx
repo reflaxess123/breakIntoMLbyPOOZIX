@@ -9,6 +9,7 @@ import { AudioPlayer } from '../../components/AudioPlayer';
 import ComplexHypothesisPage from './ComplexHypothesis';
 import DensityIntuitionPage from './DensityIntuition';
 import CasinoMarginalPage from './CasinoMarginal';
+import DirichletVizPage from './DirichletViz';
 
 // ══════════════════════════════════════════════════════════════
 // Math helpers: Beta distribution
@@ -2815,6 +2816,7 @@ export default function BayesianEstimation() {
       <Route path="complex-hypothesis" element={<ComplexHypothesisPage />} />
       <Route path="density" element={<DensityIntuitionPage />} />
       <Route path="casino-marginal" element={<CasinoMarginalPage />} />
+      <Route path="dirichlet" element={<DirichletVizPage />} />
       <Route path="history" element={<HistoryPage />} />
     </Routes>
   );

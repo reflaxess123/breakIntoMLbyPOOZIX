@@ -55,6 +55,7 @@ export const VISUALIZATIONS = [
       { path: 'complex-hypothesis', label: 'Сложная гипотеза' },
       { path: 'density', label: 'Плотность вероятности' },
       { path: 'casino-marginal', label: 'Казино: полная вероятность' },
+      { path: 'dirichlet', label: 'Распределение Дирихле' },
       { path: 'freq-vs-bayes', label: 'Частотный vs Байесовский' },
       { path: 'history', label: 'История и контекст' },
     ],
