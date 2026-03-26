@@ -7,6 +7,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { AudioPlayer } from '../../components/AudioPlayer';
 import ComplexHypothesisPage from './ComplexHypothesis';
+import DensityIntuitionPage from './DensityIntuition';
 
 // ══════════════════════════════════════════════════════════════
 // Math helpers: Beta distribution
@@ -2811,6 +2812,7 @@ export default function BayesianEstimation() {
       <Route path="mle-vs-map" element={<MLEvsMapPage />} />
       <Route path="freq-vs-bayes" element={<FreqVsBayesPage />} />
       <Route path="complex-hypothesis" element={<ComplexHypothesisPage />} />
+      <Route path="density" element={<DensityIntuitionPage />} />
       <Route path="history" element={<HistoryPage />} />
     </Routes>
   );
