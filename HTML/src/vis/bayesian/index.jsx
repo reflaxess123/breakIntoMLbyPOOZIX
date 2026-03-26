@@ -8,6 +8,7 @@ import rehypeKatex from 'rehype-katex';
 import { AudioPlayer } from '../../components/AudioPlayer';
 import ComplexHypothesisPage from './ComplexHypothesis';
 import DensityIntuitionPage from './DensityIntuition';
+import CasinoMarginalPage from './CasinoMarginal';
 
 // ══════════════════════════════════════════════════════════════
 // Math helpers: Beta distribution
@@ -2813,6 +2814,7 @@ export default function BayesianEstimation() {
       <Route path="freq-vs-bayes" element={<FreqVsBayesPage />} />
       <Route path="complex-hypothesis" element={<ComplexHypothesisPage />} />
       <Route path="density" element={<DensityIntuitionPage />} />
+      <Route path="casino-marginal" element={<CasinoMarginalPage />} />
       <Route path="history" element={<HistoryPage />} />
     </Routes>
   );

@@ -54,6 +54,7 @@ export const VISUALIZATIONS = [
       { path: 'mle-vs-map', label: 'MLE vs MAP' },
       { path: 'complex-hypothesis', label: 'Сложная гипотеза' },
       { path: 'density', label: 'Плотность вероятности' },
+      { path: 'casino-marginal', label: 'Казино: полная вероятность' },
       { path: 'freq-vs-bayes', label: 'Частотный vs Байесовский' },
       { path: 'history', label: 'История и контекст' },
     ],
