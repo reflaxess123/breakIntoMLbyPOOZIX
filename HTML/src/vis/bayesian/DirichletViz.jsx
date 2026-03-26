@@ -140,8 +140,11 @@ function DirichletSurface({ alpha }) {
     };
   }, [a1, a2, a3]);
 
+  // Key forces remount when alpha changes — ensures geometry updates
+  const geoKey = `${a1}-${a2}-${a3}`;
+
   return (
-    <mesh ref={meshRef}>
+    <mesh ref={meshRef} key={geoKey}>
       <bufferGeometry>
         <bufferAttribute attach="index" array={indices} count={indices.length} itemSize={1} />
         <bufferAttribute attach="attributes-position" array={positions} count={positions.length / 3} itemSize={3} />
@@ -175,14 +178,14 @@ function SimplexBase() {
       <line geometry={geometry}>
         <lineBasicMaterial color="#6b6b66" linewidth={1} />
       </line>
-      <Text position={[V0[0] - 0.15, 0, V0[2] - 0.15]} fontSize={0.18} color="#da7756" anchorX="center">
-        p₁
+      <Text position={[V0[0] - 0.2, 0, V0[2] - 0.2]} fontSize={0.2} color="#da7756" anchorX="center">
+        p1
       </Text>
-      <Text position={[V1[0] + 0.15, 0, V1[2] - 0.15]} fontSize={0.18} color="#588157" anchorX="center">
-        p₂
+      <Text position={[V1[0] + 0.2, 0, V1[2] - 0.2]} fontSize={0.2} color="#588157" anchorX="center">
+        p2
       </Text>
-      <Text position={[V2[0], 0, V2[2] + 0.15]} fontSize={0.18} color="#3498db" anchorX="center">
-        p₃
+      <Text position={[V2[0], 0, V2[2] + 0.2]} fontSize={0.2} color="#3498db" anchorX="center">
+        p3
       </Text>
     </group>
   );

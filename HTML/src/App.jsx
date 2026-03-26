@@ -60,6 +60,15 @@ export const VISUALIZATIONS = [
       { path: 'history', label: 'История и контекст' },
     ],
   },
+  {
+    id: 'turboquant',
+    title: 'TurboQuant: сжатие KV-кеша',
+    component: lazy(() => import('./vis/turboquant/index.jsx')),
+    pages: [
+      { path: 'theory', label: 'Теория и результаты' },
+      { path: 'pipeline', label: '3D пайплайн' },
+    ],
+  },
 ];
 
 function App() {
