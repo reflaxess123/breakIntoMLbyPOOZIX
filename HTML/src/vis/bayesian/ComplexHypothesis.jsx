@@ -654,6 +654,30 @@ export default function ComplexHypothesisPage() {
         </div>
       </div>
 
+      {/* Gothic P notation */}
+      <div className="bg-card rounded-2xl p-6 border border-border space-y-4">
+        <h2 className="text-lg font-bold text-accent">Готическая 𝔓 — это просто обозначение модели</h2>
+        <p className="text-text leading-relaxed">
+          В лекции формула написана с готической буквой 𝔓. Не пугайся — это то же самое что H, просто формальнее.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-bg rounded-xl p-4">
+            <p className="font-bold text-accent mb-2">Как у лектора (готическая 𝔓):</p>
+            <K d m="p(d|\mathfrak{P}_i) = \int_{\Theta} p(d|\theta, \mathfrak{P}_i) \cdot p(\theta|\mathfrak{P}_i) \, d\theta" />
+            <p className="text-xs text-text-dim mt-2">𝔓ᵢ = «семейство распределений с параметром θ»</p>
+          </div>
+          <div className="bg-bg rounded-xl p-4">
+            <p className="font-bold text-accent mb-2">Как мы пишем (обычная H):</p>
+            <K d m="p(d|H_i) = \int_{\Theta} p(d|\theta, H_i) \cdot p(\theta|H_i) \, d\theta" />
+            <p className="text-xs text-text-dim mt-2">Hᵢ = «i-я гипотеза/модель»</p>
+          </div>
+        </div>
+        <p className="text-sm text-text-dim">
+          <strong>Одна и та же формула.</strong> 𝔓ᵢ = Hᵢ = «i-я модель». Готическая буква просто подчёркивает,
+          что это целое <em>семейство</em> распределений (модель с параметрами), а не одно конкретное распределение.
+        </p>
+      </div>
+
       {/* Visualization 2: Discrete → Continuous */}
       <div className="bg-card rounded-2xl p-6 border border-border space-y-4">
         <h2 className="text-lg font-bold text-accent">Как сумма превращается в интеграл</h2>
