@@ -52,6 +52,7 @@ export const VISUALIZATIONS = [
       { path: 'posterior', label: 'Posterior в деле' },
       { path: 'credible-interval', label: 'Достоверный интервал' },
       { path: 'mle-vs-map', label: 'MLE vs MAP' },
+      { path: 'complex-hypothesis', label: 'Сложная гипотеза' },
       { path: 'freq-vs-bayes', label: 'Частотный vs Байесовский' },
       { path: 'history', label: 'История и контекст' },
     ],

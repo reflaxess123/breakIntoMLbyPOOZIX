@@ -5,6 +5,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import { AudioPlayer } from '../../components/AudioPlayer';
+import ComplexHypothesisPage from './ComplexHypothesis';
 
 // ══════════════════════════════════════════════════════════════
 // Math helpers: Beta distribution
@@ -1722,6 +1724,12 @@ function HistoryPage() {
           Текст сгенерирован Gemini 3.1 Pro.
         </p>
       </div>
+      <div className="mb-6">
+        <AudioPlayer
+          src={`${import.meta.env.BASE_URL || '/'}audio-bayesian-history.wav`}
+          title="🎧 Аудио-объяснение от Gemini (≈5 мин)"
+        />
+      </div>
       {loading ? (
         <div className="text-text-dim text-center py-12">Загрузка...</div>
       ) : (
@@ -2743,6 +2751,12 @@ function FreqVsBayesPage() {
           Текст сгенерирован Gemini 3.1 Pro.
         </p>
       </div>
+      <div className="mb-6">
+        <AudioPlayer
+          src={`${import.meta.env.BASE_URL || '/'}audio-freq-vs-bayes.wav`}
+          title="🎧 Аудио-объяснение от Gemini (≈5 мин)"
+        />
+      </div>
 
       {/* Key insight card */}
       <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2796,6 +2810,7 @@ export default function BayesianEstimation() {
       <Route path="credible-interval" element={<CredibleIntervalPage />} />
       <Route path="mle-vs-map" element={<MLEvsMapPage />} />
       <Route path="freq-vs-bayes" element={<FreqVsBayesPage />} />
+      <Route path="complex-hypothesis" element={<ComplexHypothesisPage />} />
       <Route path="history" element={<HistoryPage />} />
     </Routes>
   );

@@ -52,10 +52,25 @@
 ## Генерация контента через Gemini
 
 - **API ключ:** хранится в переменных, используется в скриптах
-- **Модель:** всегда `gemini-3.1-pro-preview` (НЕ 2.5 pro)
+- **Текст:** модель `gemini-3.1-pro-preview` (НИКОГДА не 2.5 pro)
+- **Аудио (TTS):** модель `gemini-2.5-pro-preview-tts`, голос `Kore` (женский)
 - **Кодировка:** записывать через `text.encode('utf-8')` в binary mode
 - **Формат вывода:** markdown без HTML/LaTeX, русский язык
-- Сгенерированные статьи кладутся в `HTML/public/` и загружаются через fetch + react-markdown
+- Сгенерированные статьи: `HTML/public/*.md`, загружаются через fetch + react-markdown
+- Сгенерированное аудио: `HTML/public/audio-*.wav`, воспроизводится через `<AudioPlayer>`
+
+### Процесс генерации аудио
+
+1. Сгенерировать текст через `gemini-3.1-pro-preview` (специально для озвучки: без формул, символов, сокращений)
+2. Отправить текст в `gemini-2.5-pro-preview-tts` (формат: PCM 24kHz 16-bit)
+3. Обернуть PCM в WAV заголовок
+4. Положить в `HTML/public/audio-*.wav`
+5. Использовать `<AudioPlayer src="..." title="..." />` на странице
+
+### Компонент AudioPlayer
+
+Плеер в стиле Telegram: кнопка play/pause, waveform-полоска, бегунок, время.
+Импорт: `import { AudioPlayer } from '../../components/AudioPlayer'`
 
 ## Деплой
 
