@@ -298,6 +298,243 @@ function DiscreteToContinuous() {
 }
 
 // ══════════════════════════════════════════════════════════════
+// Boxes Visualization: Discrete ↔ Continuous toggle
+// ══════════════════════════════════════════════════════════════
+
+const BOXES = [
+  { w: 3, b: 7, label: 'H₁' },
+  { w: 5, b: 5, label: 'H₂' },
+  { w: 8, b: 2, label: 'H₃' },
+  { w: 2, b: 8, label: 'H₄' },
+  { w: 6, b: 4, label: 'H₅' },
+];
+
+function BoxesViz() {
+  const [continuous, setContinuous] = useState(false);
+  const canvasRef = useRef(null);
+  const containerRef = useRef(null);
+  const [w, setW] = useState(0);
+  const H = 320;
+
+  useEffect(() => {
+    const ro = new ResizeObserver(entries => {
+      for (const e of entries) setW(e.contentRect.width);
+    });
+    if (containerRef.current) ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  const condProb = (theta) => 0.5 + 0.4 * Math.sin(2 * Math.PI * theta);
+
+  const discreteTotal = useMemo(() => {
+    const pH = 1 / BOXES.length;
+    return BOXES.reduce((s, box) => s + pH * box.w / (box.w + box.b), 0);
+  }, []);
+
+  const continuousTotal = useMemo(() => {
+    let s = 0;
+    const steps = 1000;
+    for (let i = 0; i < steps; i++) s += condProb(i / steps) / steps;
+    return s;
+  }, []);
+
+  useEffect(() => {
+    if (!w || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = w * dpr;
+    canvas.height = H * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    const pad = { l: 10, r: 10, t: 20, b: 50 };
+    const pw = w - pad.l - pad.r;
+    const ph = H - pad.t - pad.b;
+
+    ctx.fillStyle = '#faf9f5';
+    ctx.fillRect(0, 0, w, H);
+
+    if (!continuous) {
+      // Discrete: boxes with white/black balls
+      const n = BOXES.length;
+      const boxW = Math.min(80, (pw - (n - 1) * 12) / n);
+      const totalW = n * boxW + (n - 1) * 12;
+      const startX = pad.l + (pw - totalW) / 2;
+
+      BOXES.forEach((box, i) => {
+        const x = startX + i * (boxW + 12);
+        const total = box.w + box.b;
+        const ratio = box.w / total;
+        const maxBarH = ph * 0.85;
+        const barH = maxBarH;
+        const whiteH = barH * ratio;
+        const blackH = barH * (1 - ratio);
+        const barY = pad.t + (ph - barH);
+
+        // Black part (bottom)
+        ctx.fillStyle = '#374151';
+        ctx.beginPath();
+        ctx.roundRect(x, barY + whiteH, boxW, blackH, [0, 0, 6, 6]);
+        ctx.fill();
+
+        // White/accent part (top)
+        ctx.fillStyle = '#da7756';
+        ctx.beginPath();
+        ctx.roundRect(x, barY, boxW, whiteH, [6, 6, 0, 0]);
+        ctx.fill();
+
+        // Border
+        ctx.strokeStyle = '#e8e6dc';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(x, barY, boxW, barH, 6);
+        ctx.stroke();
+
+        // Ratio text inside
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 13px Fira Sans, system-ui';
+        ctx.textAlign = 'center';
+        if (whiteH > 20) {
+          ctx.fillText(`${box.w}W`, x + boxW / 2, barY + whiteH / 2 + 5);
+        }
+        if (blackH > 20) {
+          ctx.fillText(`${box.b}B`, x + boxW / 2, barY + whiteH + blackH / 2 + 5);
+        }
+
+        // Label below
+        ctx.fillStyle = '#6b6b66';
+        ctx.font = '12px Fira Sans, system-ui';
+        ctx.fillText(box.label, x + boxW / 2, H - pad.b + 18);
+
+        // P(B|Hi) below label
+        ctx.fillStyle = '#da7756';
+        ctx.font = '11px Fira Sans, system-ui';
+        ctx.fillText(`P(B|${box.label})=${ratio.toFixed(1)}`, x + boxW / 2, H - pad.b + 33);
+      });
+
+      // Result
+      ctx.fillStyle = '#1a1a19';
+      ctx.font = 'bold 14px Fira Sans, system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText(`P(B) = ${discreteTotal.toFixed(3)}`, w / 2, pad.t + 14);
+
+    } else {
+      // Continuous: area under curve
+      const plotL = pad.l + 40;
+      const plotR = w - pad.r;
+      const plotW = plotR - plotL;
+      const plotT = pad.t + 10;
+      const plotH = ph - 10;
+
+      // Fill area
+      ctx.beginPath();
+      ctx.moveTo(plotL, plotT + plotH);
+      for (let px = 0; px <= plotW; px++) {
+        const theta = px / plotW;
+        const pB = condProb(theta);
+        ctx.lineTo(plotL + px, plotT + plotH - pB * plotH * 0.85);
+      }
+      ctx.lineTo(plotR, plotT + plotH);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(218, 119, 86, 0.15)';
+      ctx.fill();
+
+      // Curve
+      ctx.beginPath();
+      for (let px = 0; px <= plotW; px++) {
+        const theta = px / plotW;
+        const pB = condProb(theta);
+        const y = plotT + plotH - pB * plotH * 0.85;
+        if (px === 0) ctx.moveTo(plotL + px, y);
+        else ctx.lineTo(plotL + px, y);
+      }
+      ctx.strokeStyle = '#da7756';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Axes
+      ctx.strokeStyle = '#1a1a19';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(plotL, plotT);
+      ctx.lineTo(plotL, plotT + plotH);
+      ctx.lineTo(plotR, plotT + plotH);
+      ctx.stroke();
+
+      // X labels
+      ctx.fillStyle = '#6b6b66';
+      ctx.font = '11px Fira Sans, system-ui';
+      ctx.textAlign = 'center';
+      for (let i = 0; i <= 4; i++) {
+        const x = plotL + (i / 4) * plotW;
+        ctx.fillText((i / 4).toFixed(1), x, plotT + plotH + 18);
+      }
+      ctx.fillText('θ', plotL + plotW / 2, H - 5);
+
+      // Y label
+      ctx.save();
+      ctx.translate(15, plotT + plotH / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.textAlign = 'center';
+      ctx.fillText('p(B|θ) · p(θ)', 0, 0);
+      ctx.restore();
+
+      // Integral label
+      ctx.fillStyle = '#da7756';
+      ctx.font = 'bold 12px Fira Sans, system-ui';
+      ctx.textAlign = 'left';
+      ctx.fillText('∫ p(θ)·p(B|θ) dθ', plotL + plotW * 0.3, plotT + plotH * 0.4);
+
+      // Result
+      ctx.fillStyle = '#1a1a19';
+      ctx.font = 'bold 14px Fira Sans, system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText(`P(B) = ${continuousTotal.toFixed(3)}`, w / 2, pad.t + 14);
+    }
+  }, [w, continuous, discreteTotal, continuousTotal]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => setContinuous(!continuous)}
+          className={`px-4 py-2 rounded-xl font-semibold text-sm transition-all ${
+            continuous
+              ? 'bg-accent text-white'
+              : 'bg-bg border border-border text-text'
+          }`}
+        >
+          {continuous ? '→ Непрерывный случай (интеграл)' : '→ Дискретный случай (сумма)'}
+        </button>
+        <div className="bg-accent text-white px-4 py-2 rounded-xl font-bold text-lg">
+          P(B) = {continuous ? continuousTotal.toFixed(3) : discreteTotal.toFixed(3)}
+        </div>
+      </div>
+
+      <div ref={containerRef} className="w-full">
+        {w > 0 && (
+          <canvas ref={canvasRef} style={{ width: w, height: H }}
+            className="rounded-lg block border border-border" />
+        )}
+      </div>
+
+      <div className="bg-bg rounded-xl p-4 text-sm">
+        <p className="font-mono text-center text-lg text-text-dim mb-2">
+          {continuous
+            ? 'P(B) = ∫ p(θ) · p(B|θ) dθ'
+            : 'P(B) = Σ P(Hᵢ) · P(B|Hᵢ)'}
+        </p>
+        <p className="text-text-dim">
+          {continuous
+            ? 'Бесконечно много «коробок» с плавно меняющимся составом. Каждая точка θ — своя коробка. Интеграл собирает вклады всех бесконечно тонких полосок.'
+            : `${BOXES.length} коробок с белыми (W) и чёрными (B) шарами. Каждая выбирается с равной вероятностью 1/${BOXES.length}. Тянем шар — какова вероятность белого?`}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
 // Main page
 // ══════════════════════════════════════════════════════════════
 
@@ -332,6 +569,65 @@ export default function ComplexHypothesisPage() {
         </p>
       </div>
 
+      {/* Boxes: Discrete ↔ Continuous */}
+      <div className="bg-card rounded-2xl p-6 border border-border space-y-4">
+        <h2 className="text-lg font-bold text-accent">Коробки с шарами: от суммы к интегралу</h2>
+        <p className="text-text leading-relaxed">
+          Классический пример. Есть 5 коробок, в каждой смесь белых и чёрных шаров.
+          Выбираем случайную коробку, тянем шар. <strong>Какова общая вероятность белого?</strong>
+        </p>
+        <p className="text-text leading-relaxed">
+          В дискретном случае — складываем вклады каждой коробки. В непрерывном — коробок бесконечно много,
+          состав плавно меняется, и сумма превращается в интеграл.
+          Нажми кнопку чтобы переключиться.
+        </p>
+        <BoxesViz />
+      </div>
+
+      {/* Detailed explanation */}
+      <div className="bg-card rounded-2xl p-6 border border-border space-y-4">
+        <h2 className="text-lg font-bold text-accent">Как именно сумма превращается в интеграл</h2>
+
+        <div className="space-y-4 text-text leading-relaxed">
+          <p>
+            В <strong>дискретном</strong> случае у нас конечное число гипотез: H₁, H₂, ..., Hₙ.
+            Мы их суммируем (Σ). У каждой своя вероятность P(Hᵢ) и своё правдоподобие P(B|Hᵢ).
+          </p>
+
+          <p>
+            В <strong>непрерывном</strong> случае гипотезой выступает не отдельное событие,
+            а непрерывный параметр θ, который может принимать <em>любые</em> значения.
+          </p>
+
+          <p>
+            Поскольку значений бесконечно много — мы больше не можем их просто сложить.
+            Сумма превращается в интеграл (∫), а вероятности гипотез P(Hᵢ) —
+            в <strong>плотность распределения</strong> p(θ).
+          </p>
+
+          <div className="bg-bg rounded-xl p-4">
+            <p className="font-bold text-accent mb-2">Аналогия из рисунка лектора:</p>
+            <p>
+              Представь пространство разбито на куски A₁, A₂, A₃... и есть область B.
+              В дискретном случае — 5 крупных кусков. В непрерывном —
+              нарезали на <strong>бесконечное количество бесконечно тонких полосок</strong>.
+              Интеграл собирает площадь пересечения события B со всеми этими полосками.
+            </p>
+          </div>
+
+          <div className="bg-bg rounded-xl p-4">
+            <p className="font-bold text-accent mb-2">Связь с игровым автоматом:</p>
+            <p>
+              <K m="d" /> (данные) — то что журналист увидел (138 игр).<br />
+              <K m="\theta" /> (параметр) — настройки конкретного автомата внутри гипотезы.<br />
+              <K m="p(\theta|H_0)" /> — априорное распределение: какие настройки более вероятны.<br />
+              <K m="p(d|\theta)" /> — правдоподобие: как хорошо конкретный автомат объясняет данные.<br />
+              <K m="\int \ldots \, d\theta" /> — суммируем по всем возможным автоматам.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Key formula */}
       <div className="bg-card rounded-2xl p-6 border border-border space-y-4">
         <h2 className="text-lg font-bold text-accent">Формула полной вероятности → интеграл</h2>
@@ -339,7 +635,7 @@ export default function ComplexHypothesisPage() {
         <div className="space-y-4">
           <div className="bg-bg rounded-xl p-4">
             <p className="font-bold text-accent mb-2">Дискретная версия (конечное число автоматов):</p>
-            <K d m="P(\\text{данные}|H_0) = \\sum_{i=1}^{n} P(\\text{данные}|\\theta_i) \\cdot P(\\theta_i)" />
+            <K d m="P(\text{данные}|H_0) = \sum_{i=1}^{n} P(\text{данные}|\theta_i) \cdot P(\theta_i)" />
             <p className="text-sm text-text-dim mt-2">
               Для каждого автомата θᵢ: умножь правдоподобие на вес, сложи всё.
             </p>
@@ -349,7 +645,7 @@ export default function ComplexHypothesisPage() {
 
           <div className="bg-bg rounded-xl p-4">
             <p className="font-bold text-accent mb-2">Непрерывная версия (бесконечно много автоматов):</p>
-            <K d m="P(\\text{данные}|H_0) = \\int_{\\Theta} P(\\text{данные}|\\theta) \\cdot p(\\theta) \\, d\\theta" />
+            <K d m="P(\text{данные}|H_0) = \int_{\Theta} P(\text{данные}|\theta) \cdot p(\theta) \, d\theta" />
             <p className="text-sm text-text-dim mt-2">
               Сумма превращается в интеграл. Вместо конечных весов P(θᵢ) — непрерывная плотность p(θ).
               Это <strong>в чистом виде формула полной вероятности</strong>.
@@ -391,7 +687,7 @@ export default function ComplexHypothesisPage() {
 
         <div className="bg-bg rounded-xl p-4">
           <p className="font-bold text-accent mb-2">Апостериорная вероятность:</p>
-          <K d m="P(H_i|\\text{данные}) = \\frac{P(\\text{данные}|H_i) \\cdot P(H_i)}{\\sum_j P(\\text{данные}|H_j) \\cdot P(H_j)}" />
+          <K d m="P(H_i|\text{данные}) = \frac{P(\text{данные}|H_i) \cdot P(H_i)}{\sum_j P(\text{данные}|H_j) \cdot P(H_j)}" />
           <p className="text-sm text-text-dim mt-2">
             Обычная формула Байеса, но вместо конкретных θ — целые гипотезы H₀ и H₁.
             Маргинальные правдоподобия (которые мы только что считали интегралом) подставляются сюда.
