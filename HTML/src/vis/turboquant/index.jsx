@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, Suspense, useCallback } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Text } from '@react-three/drei';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { OrbitControls, Text, Instances, Instance } from '@react-three/drei';
 import { K } from '../../components/Latex';
 import { Routes, Route, Navigate, NavLink } from 'react-router-dom';
 import * as THREE from 'three';
@@ -84,20 +84,69 @@ function generateData(n, seed) {
 // 3D Point Cloud component
 // ══════════════════════════════════════════════════════════════
 
-function PointCloud({ points, color = '#da7756', size = 0.06, opacity = 1 }) {
-  const positions = useMemo(() => {
-    const arr = new Float32Array(points.length * 3);
-    points.forEach((p, i) => { arr[i*3] = p[0]; arr[i*3+1] = p[1]; arr[i*3+2] = p[2]; });
-    return arr;
-  }, [points]);
+// Animated point cloud — spheres that lerp between positions
+function AnimatedPoints({ from, to, color = '#da7756', radius = 0.04 }) {
+  const meshRef = useRef();
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const currentPositions = useRef(from.map(p => [...p]));
+  const n = from.length;
+
+  useFrame(() => {
+    if (!meshRef.current) return;
+    const curr = currentPositions.current;
+    const speed = 0.08;
+    for (let i = 0; i < n; i++) {
+      curr[i][0] += (to[i][0] - curr[i][0]) * speed;
+      curr[i][1] += (to[i][1] - curr[i][1]) * speed;
+      curr[i][2] += (to[i][2] - curr[i][2]) * speed;
+      dummy.position.set(curr[i][0], curr[i][1], curr[i][2]);
+      dummy.updateMatrix();
+      meshRef.current.setMatrixAt(i, dummy.matrix);
+    }
+    meshRef.current.instanceMatrix.needsUpdate = true;
+  });
+
+  // Initialize positions
+  useEffect(() => {
+    if (!meshRef.current) return;
+    from.forEach((p, i) => {
+      currentPositions.current[i] = [...p];
+      dummy.position.set(p[0], p[1], p[2]);
+      dummy.updateMatrix();
+      meshRef.current.setMatrixAt(i, dummy.matrix);
+    });
+    meshRef.current.instanceMatrix.needsUpdate = true;
+  }, []);
 
   return (
-    <points>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" array={positions} count={points.length} itemSize={3} />
-      </bufferGeometry>
-      <pointsMaterial color={color} size={size} transparent opacity={opacity} sizeAttenuation />
-    </points>
+    <instancedMesh ref={meshRef} args={[null, null, n]}>
+      <sphereGeometry args={[radius, 12, 8]} />
+      <meshStandardMaterial color={color} />
+    </instancedMesh>
+  );
+}
+
+// Ghost points (semi-transparent, no animation)
+function GhostPoints({ points, color = '#da7756', radius = 0.03 }) {
+  const meshRef = useRef();
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const n = points.length;
+
+  useEffect(() => {
+    if (!meshRef.current) return;
+    points.forEach((p, i) => {
+      dummy.position.set(p[0], p[1], p[2]);
+      dummy.updateMatrix();
+      meshRef.current.setMatrixAt(i, dummy.matrix);
+    });
+    meshRef.current.instanceMatrix.needsUpdate = true;
+  }, [points, dummy]);
+
+  return (
+    <instancedMesh ref={meshRef} args={[null, null, n]}>
+      <sphereGeometry args={[radius, 8, 6]} />
+      <meshStandardMaterial color={color} transparent opacity={0.2} />
+    </instancedMesh>
   );
 }
 
@@ -238,48 +287,39 @@ function PipelineScene({ step, bits }) {
     return s / data.length;
   }, [data, correctedOrigSpace]);
 
+  // Target positions based on current step
+  const targets = useMemo(() => {
+    switch (step) {
+      case 0: return data;
+      case 1: return rotated;
+      case 2: return quantized;
+      case 3: return corrected;
+      case 4: return correctedOrigSpace;
+      default: return data;
+    }
+  }, [step, data, rotated, quantized, corrected, correctedOrigSpace]);
+
+  const mainColor = step === 0 ? '#da7756' : step === 1 ? '#588157' : step === 2 ? '#3498db' : step === 3 ? '#b8860b' : '#588157';
+
   return (
     <>
       <ambientLight intensity={0.5} />
       <directionalLight position={[3, 5, 3]} intensity={0.7} />
       <Axes />
 
-      {/* Step 0: Original data */}
-      {step === 0 && <PointCloud points={data} color="#da7756" size={0.08} />}
+      {/* Animated main points */}
+      <AnimatedPoints from={data} to={targets} color={mainColor} radius={0.05} />
 
-      {/* Step 1: Rotated */}
-      {step === 1 && (
-        <>
-          <PointCloud points={data} color="#da775640" size={0.06} opacity={0.25} />
-          <PointCloud points={rotated} color="#588157" size={0.08} />
-        </>
-      )}
+      {/* Ghost original points (steps 1-4) */}
+      {step >= 1 && <GhostPoints points={data} color="#da7756" radius={0.03} />}
 
-      {/* Step 2: Quantized in rotated space */}
+      {/* Quantization grid (step 2) */}
       {step === 2 && (
         <>
-          <PointCloud points={rotated} color="#58815740" size={0.05} opacity={0.2} />
-          <PointCloud points={quantized} color="#3498db" size={0.08} />
           <ResidualLines originals={rotated} quantized={quantized} />
           <QuantGrid bits={bits} axis={0} />
           <QuantGrid bits={bits} axis={1} />
           <QuantGrid bits={bits} axis={2} />
-        </>
-      )}
-
-      {/* Step 3: QJL correction */}
-      {step === 3 && (
-        <>
-          <PointCloud points={quantized} color="#3498db40" size={0.05} opacity={0.2} />
-          <PointCloud points={corrected} color="#b8860b" size={0.08} />
-        </>
-      )}
-
-      {/* Step 4: Back to original space */}
-      {step === 4 && (
-        <>
-          <PointCloud points={data} color="#da7756" size={0.06} opacity={0.4} />
-          <PointCloud points={correctedOrigSpace} color="#588157" size={0.08} />
         </>
       )}
 
