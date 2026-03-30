@@ -1860,23 +1860,23 @@ function KDEPage() {
     epanechnikov: { fn: z => Math.abs(z) < 1 ? 0.75 * (1 - z * z) : 0, label: 'Епанечникова', color: '#b8860b' },
   };
 
-  const K = kernels[kernel].fn;
+  const kernelFn = kernels[kernel].fn;
 
   // KDE at point x
   const kde = (x) => {
     let sum = 0;
-    for (const xi of sampleData) sum += K((x - xi) / h);
+    for (const xi of sampleData) sum += kernelFn((x - xi) / h);
     return sum / (h * sampleData.length);
   };
 
   // Individual kernel contribution
-  const kdeContrib = (x, xi) => K((x - xi) / h) / (h * sampleData.length);
+  const kdeContrib = (x, xi) => kernelFn((x - xi) / h) / (h * sampleData.length);
 
   // Probe computation
   const probeContribs = sampleData.map(xi => ({
     xi,
     z: ((probeX - xi) / h).toFixed(2),
-    kVal: K((probeX - xi) / h).toFixed(4),
+    kVal: kernelFn((probeX - xi) / h).toFixed(4),
     contrib: kdeContrib(probeX, xi).toFixed(4),
   }));
   const probeTotal = kde(probeX);
