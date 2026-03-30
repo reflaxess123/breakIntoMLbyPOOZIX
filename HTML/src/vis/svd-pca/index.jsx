@@ -1790,6 +1790,7 @@ export default function SvdPca() {
       <Route path="applications" element={<ApplicationsPage />} />
       <Route path="lora" element={<LoRAPage />} />
       <Route path="dimensionality" element={<DimensionalityPage />} />
+      <Route path="eigenvalues" element={<EigenvaluesPage />} />
     </Routes>
   );
 }
@@ -1895,6 +1896,330 @@ function ApplicationsPage() {
           пиксели, слова, рейтинги, веса нейросети — принцип один.
         </p>
       </div>
+    </div>
+  );
+}
+
+// ── Page: Eigenvalues & Eigenvectors ──
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import remarkGfm from 'remark-gfm';
+
+function EigenvaluesPage() {
+  const [md, setMd] = useState('');
+  useEffect(() => {
+    fetch(import.meta.env.BASE_URL + 'eigenvalues-history.md')
+      .then(r => r.text()).then(setMd).catch(() => setMd('Не удалось загрузить статью.'));
+  }, []);
+
+  // Interactive 2D visualization
+  const canvasRef = useRef(null);
+  const [matrix, setMatrix] = useState({ a: 2, b: 1, c: 1, d: 2 });
+  const [animT, setAnimT] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const animRef = useRef(null);
+
+  // Compute eigenvalues/eigenvectors for 2x2
+  const eigen = useMemo(() => {
+    const { a, b, c, d } = matrix;
+    const trace = a + d;
+    const det = a * d - b * c;
+    const disc = trace * trace - 4 * det;
+    if (disc < 0) return null; // complex eigenvalues
+    const sqrtDisc = Math.sqrt(disc);
+    const l1 = (trace + sqrtDisc) / 2;
+    const l2 = (trace - sqrtDisc) / 2;
+    // Eigenvectors
+    let v1, v2;
+    if (Math.abs(b) > 1e-10) {
+      v1 = [l1 - d, b]; v2 = [l2 - d, b];
+    } else if (Math.abs(c) > 1e-10) {
+      v1 = [b, l1 - a]; v2 = [b, l2 - a];
+    } else {
+      v1 = [1, 0]; v2 = [0, 1];
+    }
+    // Normalize
+    const norm1 = Math.sqrt(v1[0] ** 2 + v1[1] ** 2);
+    const norm2 = Math.sqrt(v2[0] ** 2 + v2[1] ** 2);
+    v1 = [v1[0] / norm1, v1[1] / norm1];
+    v2 = [v2[0] / norm2, v2[1] / norm2];
+    return { l1, l2, v1, v2 };
+  }, [matrix]);
+
+  // Animation
+  useEffect(() => {
+    if (!playing) { if (animRef.current) cancelAnimationFrame(animRef.current); return; }
+    let start = null;
+    const duration = 2000;
+    const tick = (ts) => {
+      if (!start) start = ts;
+      const progress = Math.min(1, (ts - start) / duration);
+      const eased = progress < 0.5 ? 2 * progress * progress : 1 - (-2 * progress + 2) ** 2 / 2;
+      setAnimT(eased);
+      if (progress < 1) animRef.current = requestAnimationFrame(tick);
+      else { setPlaying(false); }
+    };
+    animRef.current = requestAnimationFrame(tick);
+    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
+  }, [playing]);
+
+  // Draw
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = Math.min(rect.width * 0.75, 500);
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const cx = W / 2, cy = H / 2;
+    const scale = Math.min(W, H) / 7;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#faf9f5';
+    ctx.fillRect(0, 0, W, H);
+
+    // Grid
+    ctx.strokeStyle = '#e8e6dc';
+    ctx.lineWidth = 1;
+    for (let i = -5; i <= 5; i++) {
+      ctx.beginPath(); ctx.moveTo(cx + i * scale, 0); ctx.lineTo(cx + i * scale, H); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, cy + i * scale); ctx.lineTo(W, cy + i * scale); ctx.stroke();
+    }
+    // Axes
+    ctx.strokeStyle = '#6b6b66';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(W, cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke();
+
+    const { a, b, c, d } = matrix;
+    const t = animT;
+
+    // Draw circle of unit vectors → ellipse after transform
+    const nPts = 60;
+    // Before transform (unit circle)
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(218,119,86,0.3)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i <= nPts; i++) {
+      const angle = (i / nPts) * 2 * Math.PI;
+      const ox = Math.cos(angle), oy = Math.sin(angle);
+      const tx = (1 - t) * ox + t * (a * ox + b * oy);
+      const ty = (1 - t) * oy + t * (c * ox + d * oy);
+      const px = cx + tx * scale, py = cy - ty * scale;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Draw sample vectors
+    const sampleAngles = [];
+    for (let i = 0; i < 12; i++) sampleAngles.push(i * Math.PI / 6);
+
+    sampleAngles.forEach(angle => {
+      const ox = Math.cos(angle), oy = Math.sin(angle);
+      const ax = a * ox + b * oy, ay = c * ox + d * oy;
+      const tx = (1 - t) * ox + t * ax;
+      const ty = (1 - t) * oy + t * ay;
+
+      // Check if this is close to an eigenvector
+      let isEigen = false;
+      if (eigen) {
+        const dot1 = Math.abs(ox * eigen.v1[0] + oy * eigen.v1[1]);
+        const dot2 = Math.abs(ox * eigen.v2[0] + oy * eigen.v2[1]);
+        if (dot1 > 0.98 || dot2 > 0.98) isEigen = true;
+      }
+
+      // Arrow
+      ctx.beginPath();
+      ctx.strokeStyle = isEigen ? '#588157' : 'rgba(218,119,86,0.5)';
+      ctx.lineWidth = isEigen ? 3 : 1.5;
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + tx * scale, cy - ty * scale);
+      ctx.stroke();
+
+      // Arrowhead
+      const len = Math.sqrt(tx * tx + ty * ty);
+      if (len > 0.1) {
+        const ax2 = tx / len, ay2 = ty / len;
+        const headLen = 8;
+        const endX = cx + tx * scale, endY = cy - ty * scale;
+        ctx.beginPath();
+        ctx.fillStyle = isEigen ? '#588157' : 'rgba(218,119,86,0.5)';
+        ctx.moveTo(endX, endY);
+        ctx.lineTo(endX - headLen * (ax2 - ay2 * 0.4), endY + headLen * (ay2 + ax2 * 0.4));
+        ctx.lineTo(endX - headLen * (ax2 + ay2 * 0.4), endY + headLen * (ay2 - ax2 * 0.4));
+        ctx.fill();
+      }
+    });
+
+    // Draw eigenvectors explicitly (thick green)
+    if (eigen) {
+      [{ v: eigen.v1, l: eigen.l1 }, { v: eigen.v2, l: eigen.l2 }].forEach(({ v, l }) => {
+        const ox = v[0], oy = v[1];
+        const tx = (1 - t) * ox + t * l * ox;
+        const ty = (1 - t) * oy + t * l * oy;
+
+        ctx.beginPath();
+        ctx.strokeStyle = '#588157';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([]);
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + tx * scale, cy - ty * scale);
+        ctx.stroke();
+
+        // Label
+        ctx.fillStyle = '#588157';
+        ctx.font = 'bold 13px Fira Sans, sans-serif';
+        ctx.fillText(`λ=${l.toFixed(2)}`, cx + tx * scale + 8, cy - ty * scale - 5);
+      });
+    }
+
+    // Legend
+    ctx.fillStyle = '#1a1a19';
+    ctx.font = '13px Fira Sans, sans-serif';
+    ctx.fillText(t < 0.5 ? 'До: единичная окружность' : 'После: A · v', 10, 20);
+    ctx.fillStyle = '#588157';
+    ctx.fillText('Зелёные = собственные (не поворачиваются)', 10, 38);
+    ctx.fillStyle = '#da7756';
+    ctx.fillText('Оранжевые = обычные (поворачиваются)', 10, 56);
+
+  }, [matrix, animT, eigen]);
+
+  return (
+    <div className="space-y-6 max-w-4xl mx-auto">
+      <h2 className="text-2xl font-bold text-accent">Собственные значения и собственные векторы</h2>
+      <p className="text-text-dim">Особые направления, вдоль которых матрица только растягивает — без поворота.</p>
+
+      {/* Formula */}
+      <div className="bg-card rounded-2xl p-5 border border-border">
+        <K d m={`A \\vec{v} = \\lambda \\vec{v}`} />
+        <p className="text-text-dim text-sm mt-3 text-center">
+          Матрица A умножает собственный вектор v — получается тот же вектор, в λ раз длиннее.
+        </p>
+      </div>
+
+      {/* Interactive 2D visualization */}
+      <div className="bg-card rounded-2xl p-5 border border-border">
+        <h3 className="text-lg font-semibold mb-3">Интерактивная визуализация</h3>
+        <p className="text-text-dim text-sm mb-4">
+          Меняй матрицу — смотри какие вектора поворачиваются (оранжевые), а какие только растягиваются (зелёные).
+          Зелёные = собственные.
+        </p>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          {[['a', 'a'], ['b', 'b'], ['c', 'c'], ['d', 'd']].map(([key, label]) => (
+            <div key={key}>
+              <label className="text-xs text-text-dim">{label} = {matrix[key].toFixed(1)}</label>
+              <input type="range" className="w-full" min="-3" max="3" step="0.1"
+                value={matrix[key]}
+                onChange={e => { setMatrix(m => ({ ...m, [key]: +e.target.value })); setAnimT(1); }}
+              />
+            </div>
+          ))}
+        </div>
+
+        <div className="flex gap-3 mb-4 flex-wrap">
+          <button onClick={() => { setAnimT(0); setTimeout(() => setPlaying(true), 50); }}
+            className="px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:opacity-90">
+            ▶ Анимировать
+          </button>
+          <button onClick={() => { setMatrix({ a: 2, b: 1, c: 1, d: 2 }); setAnimT(0); }}
+            className="px-3 py-2 bg-card border border-border rounded-lg text-sm">Симметричная</button>
+          <button onClick={() => { setMatrix({ a: 3, b: 0, c: 0, d: 1 }); setAnimT(0); }}
+            className="px-3 py-2 bg-card border border-border rounded-lg text-sm">Диагональная</button>
+          <button onClick={() => { setMatrix({ a: 1, b: -1, c: 1, d: 1 }); setAnimT(0); }}
+            className="px-3 py-2 bg-card border border-border rounded-lg text-sm">Поворот</button>
+          <button onClick={() => { setMatrix({ a: 2, b: 1, c: 0, d: 2 }); setAnimT(0); }}
+            className="px-3 py-2 bg-card border border-border rounded-lg text-sm">Сдвиг</button>
+        </div>
+
+        <canvas ref={canvasRef} className="w-full rounded-lg border border-border" />
+
+        {eigen && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+            <div className="bg-green/10 rounded-xl p-3 border border-green/20">
+              <p className="text-sm"><strong>λ₁ = {eigen.l1.toFixed(3)}</strong></p>
+              <p className="text-xs text-text-dim">v₁ = ({eigen.v1[0].toFixed(3)}, {eigen.v1[1].toFixed(3)})</p>
+            </div>
+            <div className="bg-green/10 rounded-xl p-3 border border-green/20">
+              <p className="text-sm"><strong>λ₂ = {eigen.l2.toFixed(3)}</strong></p>
+              <p className="text-xs text-text-dim">v₂ = ({eigen.v2[0].toFixed(3)}, {eigen.v2[1].toFixed(3)})</p>
+            </div>
+          </div>
+        )}
+        {!eigen && (
+          <div className="bg-amber/10 rounded-xl p-3 border border-amber/20 mt-4">
+            <p className="text-sm text-amber">Комплексные собственные значения — матрица чисто вращает, без растяжения вдоль реальных осей. Попробуй пресет «Поворот».</p>
+          </div>
+        )}
+      </div>
+
+      {/* Descriptions UNDER viz */}
+      <div className="bg-card rounded-2xl p-5 border border-border space-y-4">
+        <h3 className="text-lg font-semibold text-accent">Что происходит</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          <div>
+            <p className="font-semibold mb-1">Оранжевые стрелки</p>
+            <p className="text-text-dim">Обычные вектора. После умножения на матрицу они и повернулись, и растянулись. Направление изменилось.</p>
+          </div>
+          <div>
+            <p className="font-semibold mb-1 text-green">Зелёные стрелки</p>
+            <p className="text-text-dim">Собственные вектора. После умножения направление осталось прежним — только длина изменилась в λ раз.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Connection to covariance */}
+      <div className="bg-card rounded-2xl p-5 border border-border space-y-3">
+        <h3 className="text-lg font-semibold text-accent">Связь с ковариационной матрицей</h3>
+        <p className="text-text-dim text-sm">
+          Для ковариационной матрицы собственные значения — это <strong>дисперсии</strong> данных вдоль главных осей.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+          <div className="bg-bg rounded-xl p-3">
+            <p className="font-semibold">Большое λ</p>
+            <p className="text-text-dim">Данные сильно разбросаны в этом направлении → информативно</p>
+          </div>
+          <div className="bg-bg rounded-xl p-3">
+            <p className="font-semibold">Маленькое λ</p>
+            <p className="text-text-dim">Данные почти не разбросаны → можно выбросить (PCA)</p>
+          </div>
+          <div className="bg-bg rounded-xl p-3">
+            <p className="font-semibold">λ = 0</p>
+            <p className="text-text-dim">Данные плоские → матрица вырожденная, необратимая</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Regularization */}
+      <div className="bg-card rounded-2xl p-5 border border-border space-y-3">
+        <h3 className="text-lg font-semibold text-accent">Регуляризация: зачем прибавлять τI</h3>
+        <K d m={`(\\hat{\\Sigma} + \\tau I) v = (\\lambda + \\tau) v`} />
+        <p className="text-text-dim text-sm">
+          Собственные вектора не меняются. Каждое собственное значение увеличивается на τ.
+          Ноль становится τ, почти-ноль становится нормальным числом. Обращение 1/(λ+τ) больше не взрывается.
+        </p>
+      </div>
+
+      {/* SVD connection */}
+      <div className="bg-card rounded-2xl p-5 border border-border space-y-3">
+        <h3 className="text-lg font-semibold text-accent">Связь с SVD</h3>
+        <K d m={`\\sigma_i = \\sqrt{\\lambda_i(A^T A)}`} />
+        <p className="text-text-dim text-sm">
+          Сингулярные значения SVD = корни из собственных значений матрицы A<sup>T</sup>A.
+          SVD универсальнее — работает для любых матриц (не только квадратных), а собственные значения — только для квадратных.
+        </p>
+      </div>
+
+      {/* Gemini article */}
+      {md && (
+        <div className="bg-card rounded-2xl p-5 border border-border prose prose-sm max-w-none">
+          <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>
+            {md}
+          </ReactMarkdown>
+        </div>
+      )}
     </div>
   );
 }

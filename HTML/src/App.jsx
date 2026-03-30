@@ -23,6 +23,7 @@ export const VISUALIZATIONS = [
       { path: 'lora', label: 'LoRA: низкоранговая адаптация' },
       { path: 'dimensionality', label: 'Снижение размерности: интуиция' },
       { path: 'applications', label: 'Где используется SVD' },
+      { path: 'eigenvalues', label: 'Собственные значения' },
     ],
   },
   {
