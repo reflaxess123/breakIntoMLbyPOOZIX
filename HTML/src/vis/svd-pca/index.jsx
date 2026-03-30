@@ -2114,11 +2114,23 @@ function EigenvaluesPage() {
     ctx.fillStyle = '#1a1a19';
     ctx.font = '13px Fira Sans, sans-serif';
     ctx.fillText(t < 0.5 ? 'До: единичная окружность' : 'После: A · v', 10, 20);
-    if (eigen) {
+    if (eigen && !eigen.repeated) {
       ctx.fillStyle = '#588157';
       ctx.fillText('Зелёные = собственные (не поворачиваются)', 10, 38);
       ctx.fillStyle = '#da7756';
       ctx.fillText('Оранжевые = обычные (поворачиваются)', 10, 56);
+    } else if (eigen && eigen.repeated && !eigen.v2) {
+      ctx.fillStyle = '#b8860b';
+      ctx.font = 'bold 13px Fira Sans, sans-serif';
+      ctx.fillText('Дефектная матрица: λ₁ = λ₂, но собственный вектор только один!', 10, 38);
+      ctx.font = '12px Fira Sans, sans-serif';
+      ctx.fillStyle = '#6b6b66';
+      ctx.fillText('Сдвиг (shear) — второго независимого направления нет.', 10, 56);
+    } else if (eigen && eigen.repeated && eigen.v2) {
+      ctx.fillStyle = '#588157';
+      ctx.fillText('λ₁ = λ₂ — скалярная матрица: ЛЮБОЙ вектор — собственный!', 10, 38);
+      ctx.fillStyle = '#6b6b66';
+      ctx.fillText('Матрица просто масштабирует всё одинаково.', 10, 56);
     } else {
       ctx.fillStyle = '#c0392b';
       ctx.font = 'bold 13px Fira Sans, sans-serif';
