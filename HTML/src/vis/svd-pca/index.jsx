@@ -1926,25 +1926,47 @@ function EigenvaluesPage() {
     const trace = a + d;
     const det = a * d - b * c;
     const disc = trace * trace - 4 * det;
-    if (disc < 0) return null; // complex eigenvalues
-    const sqrtDisc = Math.sqrt(disc);
+    if (disc < -1e-10) return null; // complex eigenvalues
+    const sqrtDisc = Math.sqrt(Math.max(0, disc));
     const l1 = (trace + sqrtDisc) / 2;
     const l2 = (trace - sqrtDisc) / 2;
-    // Eigenvectors
-    let v1, v2;
-    if (Math.abs(b) > 1e-10) {
-      v1 = [l1 - d, b]; v2 = [l2 - d, b];
-    } else if (Math.abs(c) > 1e-10) {
-      v1 = [b, l1 - a]; v2 = [b, l2 - a];
+
+    const normalize = v => {
+      const n = Math.sqrt(v[0] ** 2 + v[1] ** 2);
+      return n > 1e-12 ? [v[0] / n, v[1] / n] : [1, 0];
+    };
+
+    // Find eigenvector for eigenvalue l: (A - lI)v = 0
+    const findEigenvec = (l) => {
+      const r1 = [a - l, b];
+      const r2 = [c, d - l];
+      // Use row with larger magnitude for null space
+      if (Math.abs(r1[0]) > 1e-10 || Math.abs(r1[1]) > 1e-10) {
+        if (Math.abs(r1[0]) > Math.abs(r1[1])) return normalize([-r1[1], r1[0]]);
+        return normalize([-r1[1], r1[0]]);
+      }
+      if (Math.abs(r2[0]) > 1e-10 || Math.abs(r2[1]) > 1e-10) {
+        return normalize([-r2[1], r2[0]]);
+      }
+      return [1, 0]; // identity-like
+    };
+
+    const v1 = findEigenvec(l1);
+    let v2;
+    // Repeated eigenvalue: may have only one eigenvector direction
+    const repeated = Math.abs(l1 - l2) < 1e-8;
+    if (repeated) {
+      // Check if matrix is diagonal-like (scalar multiple of I)
+      if (Math.abs(b) < 1e-10 && Math.abs(c) < 1e-10) {
+        v2 = [0, 1]; // any direction is eigenvector
+      } else {
+        v2 = null; // defective: only one eigenvector
+      }
     } else {
-      v1 = [1, 0]; v2 = [0, 1];
+      v2 = findEigenvec(l2);
     }
-    // Normalize
-    const norm1 = Math.sqrt(v1[0] ** 2 + v1[1] ** 2);
-    const norm2 = Math.sqrt(v2[0] ** 2 + v2[1] ** 2);
-    v1 = [v1[0] / norm1, v1[1] / norm1];
-    v2 = [v2[0] / norm2, v2[1] / norm2];
-    return { l1, l2, v1, v2 };
+
+    return { l1, l2, v1, v2, repeated };
   }, [matrix]);
 
   // Animation
@@ -2012,61 +2034,74 @@ function EigenvaluesPage() {
     }
     ctx.stroke();
 
-    // Draw sample vectors
-    const sampleAngles = [];
-    for (let i = 0; i < 12; i++) sampleAngles.push(i * Math.PI / 6);
-
-    sampleAngles.forEach(angle => {
-      const ox = Math.cos(angle), oy = Math.sin(angle);
-      const ax = a * ox + b * oy, ay = c * ox + d * oy;
-      const tx = (1 - t) * ox + t * ax;
-      const ty = (1 - t) * oy + t * ay;
-
-      // Check if this is close to an eigenvector
-      let isEigen = false;
-      if (eigen) {
-        const dot1 = Math.abs(ox * eigen.v1[0] + oy * eigen.v1[1]);
-        const dot2 = Math.abs(ox * eigen.v2[0] + oy * eigen.v2[1]);
-        if (dot1 > 0.98 || dot2 > 0.98) isEigen = true;
-      }
-
-      // Arrow
+    // Helper: draw arrow from origin
+    const drawArrow = (tx, ty, color, width) => {
       ctx.beginPath();
-      ctx.strokeStyle = isEigen ? '#588157' : 'rgba(218,119,86,0.5)';
-      ctx.lineWidth = isEigen ? 3 : 1.5;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
       ctx.moveTo(cx, cy);
       ctx.lineTo(cx + tx * scale, cy - ty * scale);
       ctx.stroke();
-
-      // Arrowhead
       const len = Math.sqrt(tx * tx + ty * ty);
       if (len > 0.1) {
-        const ax2 = tx / len, ay2 = ty / len;
-        const headLen = 8;
-        const endX = cx + tx * scale, endY = cy - ty * scale;
+        const ux = tx / len, uy = ty / len;
+        const hl = 8;
+        const ex = cx + tx * scale, ey = cy - ty * scale;
         ctx.beginPath();
-        ctx.fillStyle = isEigen ? '#588157' : 'rgba(218,119,86,0.5)';
-        ctx.moveTo(endX, endY);
-        ctx.lineTo(endX - headLen * (ax2 - ay2 * 0.4), endY + headLen * (ay2 + ax2 * 0.4));
-        ctx.lineTo(endX - headLen * (ax2 + ay2 * 0.4), endY + headLen * (ay2 - ax2 * 0.4));
+        ctx.fillStyle = color;
+        ctx.moveTo(ex, ey);
+        ctx.lineTo(ex - hl * (ux - uy * 0.4), ey + hl * (uy + ux * 0.4));
+        ctx.lineTo(ex - hl * (ux + uy * 0.4), ey + hl * (uy - ux * 0.4));
         ctx.fill();
       }
-    });
+    };
 
-    // Draw eigenvectors explicitly (thick green)
+    // Collect eigenvector angles to skip them in sample arrows
+    const eigenAngles = [];
     if (eigen) {
-      [{ v: eigen.v1, l: eigen.l1 }, { v: eigen.v2, l: eigen.l2 }].forEach(({ v, l }) => {
+      eigenAngles.push(Math.atan2(eigen.v1[1], eigen.v1[0]));
+      eigenAngles.push(Math.atan2(-eigen.v1[1], -eigen.v1[0])); // opposite direction too
+      if (eigen.v2) {
+        eigenAngles.push(Math.atan2(eigen.v2[1], eigen.v2[0]));
+        eigenAngles.push(Math.atan2(-eigen.v2[1], -eigen.v2[0]));
+      }
+    }
+
+    // Draw sample vectors (orange, NOT on eigenvector directions)
+    for (let i = 0; i < 16; i++) {
+      const angle = i * Math.PI / 8;
+      const ox = Math.cos(angle), oy = Math.sin(angle);
+
+      // Skip if close to eigenvector direction
+      let skip = false;
+      for (const ea of eigenAngles) {
+        let diff = Math.abs(angle - ((ea % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI));
+        if (diff > Math.PI) diff = 2 * Math.PI - diff;
+        if (diff < 0.15) { skip = true; break; }
+      }
+      if (skip) continue;
+
+      const tx = (1 - t) * ox + t * (a * ox + b * oy);
+      const ty = (1 - t) * oy + t * (c * ox + d * oy);
+      drawArrow(tx, ty, 'rgba(218,119,86,0.45)', 1.5);
+    }
+
+    // Draw eigenvectors explicitly (thick green) — ALWAYS drawn separately
+    if (eigen) {
+      const eigVecs = [{ v: eigen.v1, l: eigen.l1 }];
+      if (eigen.v2) eigVecs.push({ v: eigen.v2, l: eigen.l2 });
+
+      eigVecs.forEach(({ v, l }) => {
+        // Forward direction
         const ox = v[0], oy = v[1];
         const tx = (1 - t) * ox + t * l * ox;
         const ty = (1 - t) * oy + t * l * oy;
+        drawArrow(tx, ty, '#588157', 3.5);
 
-        ctx.beginPath();
-        ctx.strokeStyle = '#588157';
-        ctx.lineWidth = 3;
-        ctx.setLineDash([]);
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(cx + tx * scale, cy - ty * scale);
-        ctx.stroke();
+        // Backward direction
+        const txb = (1 - t) * (-ox) + t * l * (-ox);
+        const tyb = (1 - t) * (-oy) + t * l * (-oy);
+        drawArrow(txb, tyb, '#588157', 3.5);
 
         // Label
         ctx.fillStyle = '#588157';
@@ -2079,10 +2114,19 @@ function EigenvaluesPage() {
     ctx.fillStyle = '#1a1a19';
     ctx.font = '13px Fira Sans, sans-serif';
     ctx.fillText(t < 0.5 ? 'До: единичная окружность' : 'После: A · v', 10, 20);
-    ctx.fillStyle = '#588157';
-    ctx.fillText('Зелёные = собственные (не поворачиваются)', 10, 38);
-    ctx.fillStyle = '#da7756';
-    ctx.fillText('Оранжевые = обычные (поворачиваются)', 10, 56);
+    if (eigen) {
+      ctx.fillStyle = '#588157';
+      ctx.fillText('Зелёные = собственные (не поворачиваются)', 10, 38);
+      ctx.fillStyle = '#da7756';
+      ctx.fillText('Оранжевые = обычные (поворачиваются)', 10, 56);
+    } else {
+      ctx.fillStyle = '#c0392b';
+      ctx.font = 'bold 13px Fira Sans, sans-serif';
+      ctx.fillText('Собственные значения комплексные — все векторы поворачиваются!', 10, 38);
+      ctx.font = '12px Fira Sans, sans-serif';
+      ctx.fillStyle = '#6b6b66';
+      ctx.fillText('При чистом повороте нет направлений, которые остаются на месте.', 10, 56);
+    }
 
   }, [matrix, animT, eigen]);
 
@@ -2144,7 +2188,7 @@ function EigenvaluesPage() {
             </div>
             <div className="bg-green/10 rounded-xl p-3 border border-green/20">
               <p className="text-sm"><strong>λ₂ = {eigen.l2.toFixed(3)}</strong></p>
-              <p className="text-xs text-text-dim">v₂ = ({eigen.v2[0].toFixed(3)}, {eigen.v2[1].toFixed(3)})</p>
+              <p className="text-xs text-text-dim">{eigen.v2 ? `v₂ = (${eigen.v2[0].toFixed(3)}, ${eigen.v2[1].toFixed(3)})` : 'Дефектная: только 1 собственный вектор'}</p>
             </div>
           </div>
         )}
