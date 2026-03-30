@@ -2111,22 +2111,22 @@ function KDEPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <div className="bg-bg rounded-xl p-3">
             <p className="font-semibold">Прямоугольное</p>
-            <K m={`K(z) = \\frac{1}{2}`} /> при |z| &lt; 1
+            <K m={`K(z) = \\tfrac{1}{2},\\;\\lvert z \\rvert < 1`} />
             <p className="text-text-dim mt-1">Ступенчатое. Резкие границы. Как гистограмма.</p>
           </div>
           <div className="bg-bg rounded-xl p-3">
             <p className="font-semibold text-green">Гауссовское</p>
-            <K m={`K(z) = \\frac{1}{\\sqrt{2\\pi}} e^{-z^2/2}`} />
+            <K m={`K(z) = \\tfrac{1}{\\sqrt{2\\pi}}\\, e^{-z^2/2}`} />
             <p className="text-text-dim mt-1">Самое популярное. Гладкое, бесконечно дифференцируемое.</p>
           </div>
           <div className="bg-bg rounded-xl p-3">
             <p className="font-semibold">Треугольное</p>
-            <K m={`K(z) = (1 - |z|)`} /> при |z| &lt; 1
+            <K m={`K(z) = 1 - \\lvert z \\rvert,\\;\\lvert z \\rvert < 1`} />
             <p className="text-text-dim mt-1">Плавнее прямоугольного, но с изломами.</p>
           </div>
           <div className="bg-bg rounded-xl p-3">
             <p className="font-semibold">Епанечникова</p>
-            <K m={`K(z) = \\frac{3}{4}(1 - z^2)`} /> при |z| &lt; 1
+            <K m={`K(z) = \\tfrac{3}{4}(1 - z^2),\\;\\lvert z \\rvert < 1`} />
             <p className="text-text-dim mt-1">Оптимальное в смысле MSE. Гладкое с компактным носителем.</p>
           </div>
         </div>
