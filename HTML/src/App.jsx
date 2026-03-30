@@ -41,6 +41,7 @@ export const VISUALIZATIONS = [
       { path: 'theorem', label: 'Теорема Гливенко–Кантелли' },
       { path: 'kolmogorov', label: 'Теорема Колмогорова' },
       { path: 'dkw', label: 'Неравенство DKW' },
+      { path: 'kde', label: 'Ядерная оценка плотности (KDE)' },
     ],
   },
   {

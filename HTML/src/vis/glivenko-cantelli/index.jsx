@@ -1835,6 +1835,321 @@ export default function GlivenkoCantelli() {
       <Route path="theorem" element={<TheoremPage />} />
       <Route path="kolmogorov" element={<KolmogorovPage />} />
       <Route path="dkw" element={<DKWPage />} />
+      <Route path="kde" element={<KDEPage />} />
     </Routes>
+  );
+}
+
+// ═══════════════════════════════════════════════
+// KDE — Kernel Density Estimation
+// ═══════════════════════════════════════════════
+
+function KDEPage() {
+  const sampleData = [1.2, 3.8, 4.7, 5.1, 5.3, 7.0, 8.5];
+  const [h, setH] = useState(1.0);
+  const [kernel, setKernel] = useState('gaussian');
+  const [probeX, setProbeX] = useState(5.0);
+  const [showIndividual, setShowIndividual] = useState(true);
+  const canvasRef = useRef(null);
+
+  // Kernel functions
+  const kernels = {
+    rectangular: { fn: z => Math.abs(z) < 1 ? 0.5 : 0, label: 'Прямоугольное', color: '#c0392b' },
+    gaussian: { fn: z => (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-z * z / 2), label: 'Гауссовское', color: '#588157' },
+    triangular: { fn: z => Math.abs(z) < 1 ? 1 - Math.abs(z) : 0, label: 'Треугольное', color: '#3498db' },
+    epanechnikov: { fn: z => Math.abs(z) < 1 ? 0.75 * (1 - z * z) : 0, label: 'Епанечникова', color: '#b8860b' },
+  };
+
+  const K = kernels[kernel].fn;
+
+  // KDE at point x
+  const kde = (x) => {
+    let sum = 0;
+    for (const xi of sampleData) sum += K((x - xi) / h);
+    return sum / (h * sampleData.length);
+  };
+
+  // Individual kernel contribution
+  const kdeContrib = (x, xi) => K((x - xi) / h) / (h * sampleData.length);
+
+  // Probe computation
+  const probeContribs = sampleData.map(xi => ({
+    xi,
+    z: ((probeX - xi) / h).toFixed(2),
+    kVal: K((probeX - xi) / h).toFixed(4),
+    contrib: kdeContrib(probeX, xi).toFixed(4),
+  }));
+  const probeTotal = kde(probeX);
+
+  // Draw
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const parent = canvas.parentElement;
+    canvas.width = parent.clientWidth;
+    canvas.height = Math.min(parent.clientWidth * 0.55, 420);
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const pad = { l: 50, r: 20, t: 20, b: 40 };
+    const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+
+    const xMin = -1, xMax = 11;
+    const toX = v => pad.l + (v - xMin) / (xMax - xMin) * pw;
+    const toY = v => pad.t + ph - v / 0.45 * ph;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#faf9f5';
+    ctx.fillRect(0, 0, W, H);
+
+    // Grid
+    ctx.strokeStyle = '#e8e6dc';
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= 10; x += 2) {
+      ctx.beginPath(); ctx.moveTo(toX(x), pad.t); ctx.lineTo(toX(x), pad.t + ph); ctx.stroke();
+    }
+    for (let y = 0; y <= 0.4; y += 0.1) {
+      ctx.beginPath(); ctx.moveTo(pad.l, toY(y)); ctx.lineTo(pad.l + pw, toY(y)); ctx.stroke();
+    }
+
+    // Axes
+    ctx.strokeStyle = '#6b6b66';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(pad.l, pad.t + ph); ctx.lineTo(pad.l + pw, pad.t + ph); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ph); ctx.stroke();
+
+    // X labels
+    ctx.fillStyle = '#6b6b66';
+    ctx.font = '11px Fira Sans, sans-serif';
+    ctx.textAlign = 'center';
+    for (let x = 0; x <= 10; x += 2) ctx.fillText(x, toX(x), H - 5);
+    // Y labels
+    ctx.textAlign = 'right';
+    for (let y = 0; y <= 0.4; y += 0.1) ctx.fillText(y.toFixed(1), pad.l - 5, toY(y) + 4);
+
+    const nSteps = 400;
+    const dx = (xMax - xMin) / nSteps;
+
+    // Individual kernel contributions (transparent)
+    if (showIndividual) {
+      const colors = ['#da7756', '#588157', '#3498db', '#b8860b', '#c0392b', '#6b6b66', '#9b59b6'];
+      sampleData.forEach((xi, idx) => {
+        ctx.beginPath();
+        ctx.strokeStyle = colors[idx % colors.length] + '60';
+        ctx.lineWidth = 1;
+        for (let s = 0; s <= nSteps; s++) {
+          const x = xMin + s * dx;
+          const y = kdeContrib(x, xi);
+          const px = toX(x), py = toY(y);
+          if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+      });
+    }
+
+    // Sum KDE curve
+    ctx.beginPath();
+    ctx.strokeStyle = kernels[kernel].color;
+    ctx.lineWidth = 3;
+    for (let s = 0; s <= nSteps; s++) {
+      const x = xMin + s * dx;
+      const y = kde(x);
+      const px = toX(x), py = toY(y);
+      if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Fill under KDE
+    ctx.beginPath();
+    ctx.moveTo(toX(xMin), toY(0));
+    for (let s = 0; s <= nSteps; s++) {
+      const x = xMin + s * dx;
+      ctx.lineTo(toX(x), toY(kde(x)));
+    }
+    ctx.lineTo(toX(xMax), toY(0));
+    ctx.fillStyle = kernels[kernel].color + '15';
+    ctx.fill();
+
+    // Data points on x-axis
+    sampleData.forEach(xi => {
+      ctx.beginPath();
+      ctx.arc(toX(xi), toY(0), 5, 0, Math.PI * 2);
+      ctx.fillStyle = '#da7756';
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    });
+
+    // Probe line
+    ctx.beginPath();
+    ctx.strokeStyle = '#c0392b';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.moveTo(toX(probeX), pad.t);
+    ctx.lineTo(toX(probeX), pad.t + ph);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Probe dot on curve
+    ctx.beginPath();
+    ctx.arc(toX(probeX), toY(probeTotal), 6, 0, Math.PI * 2);
+    ctx.fillStyle = '#c0392b';
+    ctx.fill();
+
+    // Probe label
+    ctx.fillStyle = '#c0392b';
+    ctx.font = 'bold 12px Fira Sans, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(`p(${probeX.toFixed(1)}) = ${probeTotal.toFixed(4)}`, toX(probeX) + 10, toY(probeTotal) - 8);
+
+    // Axis labels
+    ctx.fillStyle = '#6b6b66';
+    ctx.font = '12px Fira Sans, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('x', pad.l + pw / 2, H - 2);
+    ctx.save();
+    ctx.translate(12, pad.t + ph / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('p(x)', 0, 0);
+    ctx.restore();
+
+  }, [h, kernel, probeX, showIndividual]);
+
+  return (
+    <div className="space-y-6 max-w-4xl mx-auto">
+      <h2 className="text-2xl font-bold text-accent">Ядерная оценка плотности (KDE)</h2>
+      <p className="text-text-dim">Оценка Парзена–Розенблатта: вместо ступенчатой гистограммы — гладкая кривая.</p>
+
+      {/* Formula */}
+      <div className="bg-card rounded-2xl p-5 border border-border">
+        <K d m={`\\hat{p}_h(x) = \\frac{1}{h \\cdot \\ell} \\sum_{i=1}^{\\ell} K\\left(\\frac{x - x_i}{h}\\right)`} />
+        <p className="text-text-dim text-sm mt-2 text-center">
+          Для каждой точки выборки xᵢ ставим ядро K с шириной h. Суммируем все вклады.
+        </p>
+      </div>
+
+      {/* Controls */}
+      <div className="bg-card rounded-2xl p-5 border border-border">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+          {/* Kernel selector */}
+          <div>
+            <label className="text-sm font-medium block mb-1">Ядро K</label>
+            <div className="flex flex-wrap gap-1">
+              {Object.entries(kernels).map(([k, v]) => (
+                <button key={k} onClick={() => setKernel(k)}
+                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${kernel === k ? 'bg-accent text-white' : 'bg-bg border border-border hover:bg-card-hover'}`}>
+                  {v.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* h slider */}
+          <div>
+            <label className="text-sm font-medium block mb-1">h = {h.toFixed(2)}</label>
+            <input type="range" className="w-full" min="0.1" max="3" step="0.05" value={h}
+              onChange={e => setH(+e.target.value)} />
+            <div className="flex justify-between text-xs text-text-dim">
+              <span>0.1 (переобучение)</span><span>3.0 (размазано)</span>
+            </div>
+          </div>
+
+          {/* Probe slider */}
+          <div>
+            <label className="text-sm font-medium block mb-1">Проба x = {probeX.toFixed(1)}</label>
+            <input type="range" className="w-full" min="0" max="10" step="0.1" value={probeX}
+              onChange={e => setProbeX(+e.target.value)} />
+          </div>
+
+          {/* Show individual */}
+          <div className="flex items-center gap-2 mt-4">
+            <input type="checkbox" id="showInd" checked={showIndividual} onChange={e => setShowIndividual(e.target.checked)} />
+            <label htmlFor="showInd" className="text-sm">Показать вклады каждой точки</label>
+          </div>
+        </div>
+
+        {/* Canvas */}
+        <canvas ref={canvasRef} className="w-full rounded-lg border border-border" />
+      </div>
+
+      {/* Probe calculation */}
+      <div className="bg-card rounded-2xl p-5 border border-border">
+        <h3 className="text-lg font-semibold mb-3">Расчёт в точке x = {probeX.toFixed(1)}</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="p-2 text-left">xᵢ</th>
+                <th className="p-2 text-center">z = (x−xᵢ)/h</th>
+                <th className="p-2 text-center">K(z)</th>
+                <th className="p-2 text-center">Вклад</th>
+              </tr>
+            </thead>
+            <tbody>
+              {probeContribs.map((c, i) => (
+                <tr key={i} className="border-b border-border/50">
+                  <td className="p-2 font-medium text-coral">{c.xi}</td>
+                  <td className="p-2 text-center">{c.z}</td>
+                  <td className="p-2 text-center">{c.kVal}</td>
+                  <td className="p-2 text-center font-medium">{c.contrib}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-accent">
+                <td colSpan={3} className="p-2 text-right font-semibold">Σ / (h·ℓ) =</td>
+                <td className="p-2 text-center font-bold text-accent text-lg">{probeTotal.toFixed(4)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {/* Kernel comparison */}
+      <div className="bg-card rounded-2xl p-5 border border-border space-y-3">
+        <h3 className="text-lg font-semibold text-accent">Какие ядра бывают</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <div className="bg-bg rounded-xl p-3">
+            <p className="font-semibold">Прямоугольное</p>
+            <K m={`K(z) = \\frac{1}{2}`} /> при |z| &lt; 1
+            <p className="text-text-dim mt-1">Ступенчатое. Резкие границы. Как гистограмма.</p>
+          </div>
+          <div className="bg-bg rounded-xl p-3">
+            <p className="font-semibold text-green">Гауссовское</p>
+            <K m={`K(z) = \\frac{1}{\\sqrt{2\\pi}} e^{-z^2/2}`} />
+            <p className="text-text-dim mt-1">Самое популярное. Гладкое, бесконечно дифференцируемое.</p>
+          </div>
+          <div className="bg-bg rounded-xl p-3">
+            <p className="font-semibold">Треугольное</p>
+            <K m={`K(z) = (1 - |z|)`} /> при |z| &lt; 1
+            <p className="text-text-dim mt-1">Плавнее прямоугольного, но с изломами.</p>
+          </div>
+          <div className="bg-bg rounded-xl p-3">
+            <p className="font-semibold">Епанечникова</p>
+            <K m={`K(z) = \\frac{3}{4}(1 - z^2)`} /> при |z| &lt; 1
+            <p className="text-text-dim mt-1">Оптимальное в смысле MSE. Гладкое с компактным носителем.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* h parameter */}
+      <div className="bg-card rounded-2xl p-5 border border-border space-y-3">
+        <h3 className="text-lg font-semibold text-accent">Параметр h — ширина окна</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+          <div className="bg-red/10 rounded-xl p-3 border border-red/20">
+            <p className="font-semibold text-red">h слишком маленький</p>
+            <p className="text-text-dim">Каждая точка — отдельный пик. Дёрганая кривая. <strong>Переобучение.</strong></p>
+          </div>
+          <div className="bg-green/10 rounded-xl p-3 border border-green/20">
+            <p className="font-semibold text-green">h в самый раз</p>
+            <p className="text-text-dim">Гладкая кривая, отражает реальную форму. Подбирается кросс-валидацией.</p>
+          </div>
+          <div className="bg-amber/10 rounded-xl p-3 border border-amber/20">
+            <p className="font-semibold text-amber">h слишком большой</p>
+            <p className="text-text-dim">Всё размазано в блин. Детали потеряны. <strong>Недообучение.</strong></p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
