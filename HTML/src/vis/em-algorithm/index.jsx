@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { K } from '../../components/Latex';
+import { Routes, Route, Navigate, NavLink } from 'react-router-dom';
 
 // ── Seeded RNG ──
 function makeRng(seed) {
@@ -309,8 +310,391 @@ function GMMCanvas({ points, params }) {
   );
 }
 
-// ── Main component ──
-export default function EMAlgorithm() {
+// ══════════════════════════════════════════════════════════════
+// Bernoulli Mixture (binary features — like document topics)
+// ══════════════════════════════════════════════════════════════
+
+function generateBinaryData(seed, n = 60, d = 8) {
+  const rng = makeRng(seed);
+  // Two clusters with different Bernoulli params
+  const p1 = Array.from({ length: d }, () => 0.15 + rng() * 0.3); // low probabilities
+  const p2 = Array.from({ length: d }, () => 0.55 + rng() * 0.35); // high probabilities
+  const data = [];
+  for (let i = 0; i < n; i++) {
+    const cluster = rng() < 0.45 ? 0 : 1;
+    const pk = cluster === 0 ? p1 : p2;
+    data.push(pk.map(p => rng() < p ? 1 : 0));
+  }
+  return { data, d, trueP: [p1, p2] };
+}
+
+function BernoulliEMPage() {
+  const [{ data, d }] = useState(() => generateBinaryData(77));
+  const n = data.length;
+  const K_clusters = 2;
+
+  // Parameters: p[j][f] = P(feature f = 1 | cluster j), w[j] = weight
+  const [params, setParams] = useState(() => {
+    const rng = makeRng(999);
+    return {
+      p: [Array.from({ length: d }, () => 0.2 + rng() * 0.6), Array.from({ length: d }, () => 0.2 + rng() * 0.6)],
+      w: [0.5, 0.5],
+      g: data.map(() => [0.5, 0.5]),
+    };
+  });
+  const [iteration, setIteration] = useState(0);
+  const [running, setRunning] = useState(false);
+  const runRef = useRef(false);
+
+  const doEStep = useCallback(() => {
+    setParams(prev => {
+      const g = data.map(xi => {
+        const logP = prev.p.map((pj, j) => {
+          let ll = Math.log(prev.w[j]);
+          for (let f = 0; f < d; f++) {
+            const pf = Math.max(1e-10, Math.min(1 - 1e-10, pj[f]));
+            ll += xi[f] * Math.log(pf) + (1 - xi[f]) * Math.log(1 - pf);
+          }
+          return ll;
+        });
+        const maxLP = Math.max(...logP);
+        const exp = logP.map(lp => Math.exp(lp - maxLP));
+        const sum = exp.reduce((a, b) => a + b);
+        return exp.map(e => e / sum);
+      });
+      return { ...prev, g };
+    });
+  }, [data, d]);
+
+  const doMStep = useCallback(() => {
+    setParams(prev => {
+      const newP = Array.from({ length: K_clusters }, (_, j) => {
+        const nj = prev.g.reduce((s, gi) => s + gi[j], 0);
+        return Array.from({ length: d }, (_, f) => {
+          const sumF = data.reduce((s, xi, i) => s + prev.g[i][j] * xi[f], 0);
+          return Math.max(0.01, Math.min(0.99, sumF / Math.max(nj, 1e-10)));
+        });
+      });
+      const newW = Array.from({ length: K_clusters }, (_, j) =>
+        prev.g.reduce((s, gi) => s + gi[j], 0) / n
+      );
+      setIteration(i => i + 1);
+      return { ...prev, p: newP, w: newW };
+    });
+  }, [data, d, n]);
+
+  const runEM = useCallback(() => {
+    if (running) { runRef.current = false; setRunning(false); return; }
+    runRef.current = true; setRunning(true);
+    let isE = true;
+    const tick = () => {
+      if (!runRef.current) return;
+      if (isE) doEStep(); else doMStep();
+      isE = !isE;
+      setTimeout(tick, isE ? 150 : 400);
+    };
+    tick();
+  }, [running, doEStep, doMStep]);
+
+  const reset = useCallback(() => {
+    runRef.current = false; setRunning(false);
+    const rng = makeRng(Date.now() % 100000);
+    setParams({
+      p: [Array.from({ length: d }, () => 0.2 + rng() * 0.6), Array.from({ length: d }, () => 0.2 + rng() * 0.6)],
+      w: [0.5, 0.5],
+      g: data.map(() => [0.5, 0.5]),
+    });
+    setIteration(0);
+  }, [data, d]);
+
+  useEffect(() => () => { runRef.current = false; }, []);
+
+  // Draw heatmap of data with cluster coloring
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = Math.max(400, n * 6 + 60);
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+
+    const cellW = Math.min(40, (W - 160) / d);
+    const cellH = Math.min(8, (H - 60) / n);
+    const offX = 100, offY = 30;
+
+    // Sort rows by cluster assignment for clarity
+    const sorted = data.map((xi, i) => ({ xi, i, g: params.g[i] }))
+      .sort((a, b) => (b.g[0] - 0.5) - (a.g[0] - 0.5));
+
+    sorted.forEach(({ xi, g: gi }, row) => {
+      // Row color indicator
+      const r1 = Math.round(218 * gi[0] + 88 * gi[1]);
+      const g1 = Math.round(119 * gi[0] + 129 * gi[1]);
+      const b1 = Math.round(86 * gi[0] + 87 * gi[1]);
+      ctx.fillStyle = `rgb(${r1},${g1},${b1})`;
+      ctx.fillRect(offX - 15, offY + row * cellH, 10, cellH - 1);
+
+      // Data cells
+      xi.forEach((v, f) => {
+        ctx.fillStyle = v ? '#1a1a19' : '#f0ede6';
+        ctx.fillRect(offX + f * cellW, offY + row * cellH, cellW - 1, cellH - 1);
+      });
+    });
+
+    // Feature labels
+    ctx.fillStyle = '#6b6b66';
+    ctx.font = '10px Fira Sans, sans-serif';
+    ctx.textAlign = 'center';
+    for (let f = 0; f < d; f++) {
+      ctx.fillText(`f${f + 1}`, offX + f * cellW + cellW / 2, offY - 5);
+    }
+
+    // Parameter bars below
+    const barY = offY + n * cellH + 20;
+    ctx.fillStyle = '#6b6b66';
+    ctx.font = '11px Fira Sans, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('P(f=1|кластер 1):', 5, barY + 10);
+    ctx.fillText('P(f=1|кластер 2):', 5, barY + 30);
+
+    params.p.forEach((pj, j) => {
+      const color = j === 0 ? '#da7756' : '#588157';
+      pj.forEach((pf, f) => {
+        const bh = 14;
+        const by = barY + j * 20;
+        ctx.fillStyle = '#f0ede6';
+        ctx.fillRect(offX + f * cellW, by, cellW - 1, bh);
+        ctx.fillStyle = color;
+        ctx.fillRect(offX + f * cellW, by + bh * (1 - pf), cellW - 1, bh * pf);
+      });
+    });
+  }, [data, params, d, n]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap gap-3">
+        <button onClick={doEStep} disabled={running} className="px-4 py-2 rounded-lg bg-accent text-white font-medium hover:opacity-90 disabled:opacity-40 w-full sm:w-auto">E-шаг</button>
+        <button onClick={doMStep} disabled={running} className="px-4 py-2 rounded-lg bg-green text-white font-medium hover:opacity-90 disabled:opacity-40 w-full sm:w-auto">M-шаг</button>
+        <button onClick={runEM} className={`px-4 py-2 rounded-lg font-medium w-full sm:w-auto ${running ? 'bg-red text-white' : 'bg-text text-white hover:opacity-90'}`}>{running ? 'Стоп' : 'Запустить'}</button>
+        <button onClick={reset} className="px-4 py-2 rounded-lg border border-border text-text font-medium hover:bg-bg w-full sm:w-auto">Сброс</button>
+        <span className="text-sm text-text-dim self-center">Итерация: <strong>{iteration}</strong> | <K m={`w_1=${params.w[0].toFixed(2)}`} /></span>
+      </div>
+
+      <div className="bg-card rounded-xl border border-border p-4">
+        <canvas ref={canvasRef} className="w-full rounded" />
+      </div>
+
+      <div className="bg-card rounded-xl border border-border p-5 space-y-3">
+        <h2 className="text-lg font-bold">Смесь Бернулли — бинарные данные</h2>
+        <p>Данные — таблица 0 и 1 ({n} объектов × {d} признаков). Каждый кластер — свой набор вероятностей «единички» по каждому признаку.</p>
+        <p><strong>Применение:</strong> тематическое моделирование документов (слово есть/нет), анализ анкет, медицинские симптомы (есть/нет).</p>
+        <p>Формула E-шага та же (Байес), M-шаг:</p>
+        <div className="overflow-x-auto py-2">
+          <K d m={`p_{jf} = \\frac{\\sum_i g_{ij} \\cdot x_{if}}{\\sum_i g_{ij}}`} />
+        </div>
+        <p className="text-sm text-text-dim">Внизу — оценённые P(f=1|кластер) для каждого признака. Столбик выше = выше вероятность единицы в этом кластере.</p>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// Poisson Mixture (count data — like word frequencies)
+// ══════════════════════════════════════════════════════════════
+
+function generatePoissonData(seed, n = 100) {
+  const rng = makeRng(seed);
+  const lambdas = [2.5, 8.0]; // Two Poisson rates
+  const w = [0.4, 0.6];
+  const data = [];
+  for (let i = 0; i < n; i++) {
+    const j = rng() < w[0] ? 0 : 1;
+    // Poisson sampling via inverse transform
+    const L = Math.exp(-lambdas[j]);
+    let k = 0, p = 1;
+    do { k++; p *= rng(); } while (p > L);
+    data.push(k - 1);
+  }
+  return data;
+}
+
+function poissonPMF(k, lambda) {
+  let logP = -lambda + k * Math.log(lambda);
+  for (let i = 2; i <= k; i++) logP -= Math.log(i);
+  return Math.exp(logP);
+}
+
+function PoissonEMPage() {
+  const [data] = useState(() => generatePoissonData(55));
+  const n = data.length;
+  const maxVal = Math.max(...data);
+
+  const [params, setParams] = useState({ lambda: [1.5, 6.0], w: [0.5, 0.5], g: data.map(() => [0.5, 0.5]) });
+  const [iteration, setIteration] = useState(0);
+  const [running, setRunning] = useState(false);
+  const runRef = useRef(false);
+
+  const doEStep = useCallback(() => {
+    setParams(prev => {
+      const g = data.map(xi => {
+        const p = prev.lambda.map((lam, j) => prev.w[j] * poissonPMF(xi, lam));
+        const sum = p.reduce((a, b) => a + b);
+        return p.map(v => v / Math.max(sum, 1e-30));
+      });
+      return { ...prev, g };
+    });
+  }, [data]);
+
+  const doMStep = useCallback(() => {
+    setParams(prev => {
+      const newLam = [0, 1].map(j => {
+        const nj = prev.g.reduce((s, gi) => s + gi[j], 0);
+        return data.reduce((s, xi, i) => s + prev.g[i][j] * xi, 0) / Math.max(nj, 1e-10);
+      });
+      const newW = [0, 1].map(j => prev.g.reduce((s, gi) => s + gi[j], 0) / n);
+      setIteration(i => i + 1);
+      return { ...prev, lambda: newLam, w: newW };
+    });
+  }, [data, n]);
+
+  const runEM = useCallback(() => {
+    if (running) { runRef.current = false; setRunning(false); return; }
+    runRef.current = true; setRunning(true);
+    let isE = true;
+    const tick = () => {
+      if (!runRef.current) return;
+      if (isE) doEStep(); else doMStep();
+      isE = !isE;
+      setTimeout(tick, isE ? 150 : 400);
+    };
+    tick();
+  }, [running, doEStep, doMStep]);
+
+  const reset = useCallback(() => {
+    runRef.current = false; setRunning(false);
+    const rng = makeRng(Date.now() % 100000);
+    setParams({ lambda: [1 + rng() * 4, 4 + rng() * 8], w: [0.5, 0.5], g: data.map(() => [0.5, 0.5]) });
+    setIteration(0);
+  }, [data]);
+
+  useEffect(() => () => { runRef.current = false; }, []);
+
+  const canvasRef = useRef(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = 350;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const pad = { l: 50, r: 20, t: 20, b: 40 };
+    const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+
+    // Histogram of data
+    const bins = new Array(maxVal + 1).fill(0);
+    data.forEach(v => bins[v]++);
+    const maxBin = Math.max(...bins);
+    const barW = pw / (maxVal + 1);
+
+    bins.forEach((cnt, k) => {
+      // Color by average cluster assignment for this value
+      const pointsAtK = data.map((v, i) => v === k ? params.g[i] : null).filter(Boolean);
+      let avgG0 = 0.5;
+      if (pointsAtK.length > 0) avgG0 = pointsAtK.reduce((s, g) => s + g[0], 0) / pointsAtK.length;
+
+      const r = Math.round(218 * avgG0 + 88 * (1 - avgG0));
+      const g = Math.round(119 * avgG0 + 129 * (1 - avgG0));
+      const b = Math.round(86 * avgG0 + 87 * (1 - avgG0));
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+
+      const bh = (cnt / maxBin) * ph;
+      ctx.fillRect(pad.l + k * barW + 2, pad.t + ph - bh, barW - 4, bh);
+    });
+
+    // Poisson curves
+    [['#da7756', 0], ['#588157', 1]].forEach(([color, j]) => {
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.5;
+      for (let k = 0; k <= maxVal; k++) {
+        const y = poissonPMF(k, params.lambda[j]) * params.w[j] * n;
+        const yPx = pad.t + ph - (y / maxBin) * ph;
+        const xPx = pad.l + (k + 0.5) * barW;
+        if (k === 0) ctx.moveTo(xPx, yPx);
+        else ctx.lineTo(xPx, yPx);
+      }
+      ctx.stroke();
+    });
+
+    // Axes
+    ctx.strokeStyle = '#e8e6dc';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad.l, pad.t);
+    ctx.lineTo(pad.l, pad.t + ph);
+    ctx.lineTo(pad.l + pw, pad.t + ph);
+    ctx.stroke();
+
+    ctx.fillStyle = '#6b6b66';
+    ctx.font = '11px Fira Sans, sans-serif';
+    ctx.textAlign = 'center';
+    for (let k = 0; k <= maxVal; k += Math.ceil((maxVal + 1) / 15)) {
+      ctx.fillText(k.toString(), pad.l + (k + 0.5) * barW, H - 5);
+    }
+    ctx.textAlign = 'right';
+    for (let i = 0; i <= 4; i++) {
+      const v = Math.round(maxBin * i / 4);
+      ctx.fillText(v.toString(), pad.l - 5, pad.t + ph - (i / 4) * ph + 4);
+    }
+  }, [data, params, maxVal, n]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap gap-3">
+        <button onClick={doEStep} disabled={running} className="px-4 py-2 rounded-lg bg-accent text-white font-medium hover:opacity-90 disabled:opacity-40 w-full sm:w-auto">E-шаг</button>
+        <button onClick={doMStep} disabled={running} className="px-4 py-2 rounded-lg bg-green text-white font-medium hover:opacity-90 disabled:opacity-40 w-full sm:w-auto">M-шаг</button>
+        <button onClick={runEM} className={`px-4 py-2 rounded-lg font-medium w-full sm:w-auto ${running ? 'bg-red text-white' : 'bg-text text-white hover:opacity-90'}`}>{running ? 'Стоп' : 'Запустить'}</button>
+        <button onClick={reset} className="px-4 py-2 rounded-lg border border-border text-text font-medium hover:bg-bg w-full sm:w-auto">Сброс</button>
+        <span className="text-sm text-text-dim self-center">
+          Итерация: <strong>{iteration}</strong> |
+          <K m={`\\lambda_1=${params.lambda[0].toFixed(1)}`} />,
+          <K m={`\\lambda_2=${params.lambda[1].toFixed(1)}`} />
+        </span>
+      </div>
+
+      <div className="bg-card rounded-xl border border-border p-4">
+        <canvas ref={canvasRef} className="w-full rounded" />
+      </div>
+
+      <div className="bg-card rounded-xl border border-border p-5 space-y-3">
+        <h2 className="text-lg font-bold">Смесь Пуассона — данные-счётчики</h2>
+        <p>Данные — целые числа (0, 1, 2, 3...). Каждый кластер — свой Пуассон с параметром λ (среднее число событий).</p>
+        <p><strong>Применение:</strong> количество покупок за день (2 группы клиентов), частота слов в текстах, число кликов.</p>
+        <p>M-шаг для Пуассона:</p>
+        <div className="overflow-x-auto py-2">
+          <K d m={`\\lambda_j = \\frac{\\sum_i g_{ij} \\cdot x_i}{\\sum_i g_{ij}}`} />
+        </div>
+        <p className="text-sm text-text-dim">Цветные кривые — плотности компонент Пуассона × их вес × n. Цвет столбиков — мягкое присвоение.</p>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// Gaussian Mixture Page (original)
+// ══════════════════════════════════════════════════════════════
+
+// ── Gaussian page ──
+function GaussianEMPage() {
   const [, setInitSeed] = useState(137);
   const [points] = useState(() => generateData(42));
   const [params, setParams] = useState(() => randomInit(generateData(42), 137));
@@ -382,11 +766,7 @@ export default function EMAlgorithm() {
   }, []);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 md:px-8 py-6 space-y-6">
-      <h1 className="text-2xl md:text-3xl font-bold text-text">
-        EM-алгоритм: смесь гауссиан
-      </h1>
-
+    <div className="space-y-6">
       {/* Controls */}
       <div className="flex flex-wrap gap-3">
         <button
@@ -526,6 +906,43 @@ export default function EMAlgorithm() {
           </ul>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// Router wrapper with tabs
+// ══════════════════════════════════════════════════════════════
+
+const pages = [
+  { path: 'gaussian', label: 'Гауссиан (2D)', component: GaussianEMPage },
+  { path: 'bernoulli', label: 'Бернулли (бинарные)', component: BernoulliEMPage },
+  { path: 'poisson', label: 'Пуассон (счётчики)', component: PoissonEMPage },
+];
+
+export default function EMAlgorithm() {
+  const tabCls = ({ isActive }) =>
+    `px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${
+      isActive ? 'bg-accent text-white' : 'bg-card border border-border text-text hover:bg-bg'
+    }`;
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 md:px-8 py-6 space-y-6">
+      <h1 className="text-2xl md:text-3xl font-bold text-text">EM-алгоритм</h1>
+      <p className="text-text-dim">Разделение смеси распределений. Один метод — разные распределения:</p>
+
+      <nav className="flex flex-wrap gap-2">
+        {pages.map(p => (
+          <NavLink key={p.path} to={p.path} className={tabCls}>{p.label}</NavLink>
+        ))}
+      </nav>
+
+      <Routes>
+        {pages.map(p => (
+          <Route key={p.path} path={p.path} element={<p.component />} />
+        ))}
+        <Route path="*" element={<Navigate to="gaussian" replace />} />
+      </Routes>
     </div>
   );
 }

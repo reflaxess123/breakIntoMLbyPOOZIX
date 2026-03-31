@@ -66,6 +66,11 @@ export const VISUALIZATIONS = [
     id: 'em-algorithm',
     title: 'EM-алгоритм',
     component: lazy(() => import('./vis/em-algorithm/index.jsx')),
+    pages: [
+      { path: 'gaussian', label: 'Гауссиан (2D)' },
+      { path: 'bernoulli', label: 'Бернулли' },
+      { path: 'poisson', label: 'Пуассон' },
+    ],
   },
   {
     id: 'turboquant',
