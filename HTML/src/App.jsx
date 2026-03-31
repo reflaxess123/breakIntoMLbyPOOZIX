@@ -63,6 +63,11 @@ export const VISUALIZATIONS = [
     ],
   },
   {
+    id: 'em-algorithm',
+    title: 'EM-алгоритм',
+    component: lazy(() => import('./vis/em-algorithm/index.jsx')),
+  },
+  {
     id: 'turboquant',
     title: 'TurboQuant: сжатие KV-кеша',
     component: lazy(() => import('./vis/turboquant/index.jsx')),
