@@ -183,7 +183,7 @@ export function Layout({ children }) {
 
         {/* Mobile content — minimal padding */}
         <main className="flex-1">
-          <div className="max-w-6xl mx-auto px-0 py-2">
+          <div className="max-w-7xl mx-auto px-0 py-2">
             {children}
           </div>
         </main>
@@ -208,7 +208,7 @@ export function Layout({ children }) {
 
       {/* Desktop content */}
       <main className="hidden md:block flex-1 min-w-0 overflow-x-hidden">
-        <div className="max-w-6xl mx-auto px-8 py-8">
+        <div className="max-w-7xl mx-auto px-8 py-8">
           {children}
         </div>
       </main>

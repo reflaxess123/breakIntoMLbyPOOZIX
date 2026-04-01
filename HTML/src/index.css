@@ -52,7 +52,10 @@ body {
 }
 
 /* Tables: horizontal scroll only on tables, not whole page */
-.prose table { display: block; overflow-x: auto; white-space: nowrap; }
+.prose table { display: block; overflow-x: auto; }
+@media (max-width: 767px) {
+  .prose table { white-space: nowrap; }
+}
 
 /* KaTeX: inherit text color */
 .katex { color: inherit; }
