@@ -933,7 +933,7 @@ export default function EMAlgorithm() {
 
       <nav className="flex flex-wrap gap-2">
         {pages.map(p => (
-          <NavLink key={p.path} to={p.path} className={tabCls}>{p.label}</NavLink>
+          <NavLink key={p.path} to={`/vis/em-algorithm/${p.path}`} className={tabCls}>{p.label}</NavLink>
         ))}
       </nav>
 
@@ -941,7 +941,8 @@ export default function EMAlgorithm() {
         {pages.map(p => (
           <Route key={p.path} path={p.path} element={<p.component />} />
         ))}
-        <Route path="*" element={<Navigate to="gaussian" replace />} />
+        <Route path="/" element={<Navigate to="/vis/em-algorithm/gaussian" replace />} />
+        <Route path="*" element={<Navigate to="/vis/em-algorithm/gaussian" replace />} />
       </Routes>
     </div>
   );
